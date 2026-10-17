@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17201B">
+<title>دورك · جوال زبونك صار جهاز النداء</title>
+<meta name="description" content="بدل أجهزة النداء: الزبون بيمسح رمز QR، وبيرن جواله لما يجهز طلبه. للمطاعم والكافيهات بسوريا.">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+<style>
+.hero{background:var(--ink);color:#fff;padding:20px 16px 0;overflow:hidden}
+.hero nav{display:flex;align-items:center;gap:10px;max-width:980px;margin:0 auto}
+.hero nav .sp{flex:1}
+.hero nav a,.hero nav button{color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:8px 10px;border-radius:10px}
+.hin{max-width:980px;margin:0 auto;display:grid;gap:28px;padding:40px 0 0;align-items:end}
+.hin h1{font-size:clamp(32px,7vw,54px);line-height:1.15;font-weight:900}
+.hin h1 em{font-style:normal;color:var(--acc)}
+.hin p{font-size:18px;opacity:.85;margin:16px 0 24px;max-width:520px}
+.cta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:34px}
+.phone{justify-self:center;width:250px;background:#fff;color:var(--ink);border-radius:36px 36px 0 0;padding:18px 16px 30px;border:8px solid #2B3730;border-bottom:0;box-shadow:0 -10px 50px rgba(255,122,26,.25);text-align:center}
+.phone .lg{width:44px;height:44px;border-radius:13px;background:var(--acc);margin:6px auto 6px;display:grid;place-items:center;font-size:20px}
+.phone .n{font-size:84px;font-weight:900;line-height:1;margin:6px 0 12px}
+.phone .st{display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:8px}
+.phone .bar2{height:5px;border-radius:5px;background:var(--line);position:relative}.phone .bar2:after{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:55%;background:var(--acc);border-radius:5px}
+.phone .al{margin-top:16px;background:var(--ink);color:#fff;border-radius:14px;padding:11px;font-weight:800;font-size:14px}
+section{max-width:980px;margin:0 auto;padding:56px 16px 0}
+section>h2{font-size:28px;font-weight:900;margin-bottom:8px;text-align:center}
+section>p.sub{text-align:center;color:var(--mute);margin-bottom:26px}
+.steps3{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.s3{background:var(--card);border-radius:22px;padding:22px;box-shadow:var(--sh)}
+.s3 .k{width:42px;height:42px;border-radius:13px;background:var(--acc2);color:#9A3F00;display:grid;place-items:center;font-weight:900;font-size:18px;margin-bottom:12px}
+.s3 b{font-size:18px;display:block;margin-bottom:6px}.s3 p{color:var(--mute);font-size:15px}
+.vs{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.vs .card ul{list-style:none;line-height:2.1}
+footer{text-align:center;color:var(--mute);font-size:13px;padding:50px 16px 30px}
+@media(min-width:760px){.hin{grid-template-columns:1.2fr 1fr}.phone{justify-self:end}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <nav><a class="brand" href="./"><i>🔔</i><span data-t>دورك</span></a><span class="sp"></span>
+    <button id="lng">EN</button><a href="app.html" data-t>دخول</a></nav>
+  <div class="hin">
+    <div><h1><span data-t>جوال زبونك</span><br><em data-t>صار جهاز النداء</em></h1>
+      <p data-t>بلا أجهزة نداء تخرب وتضيع. الزبون بيمسح رمز QR، وبيرن جواله لما يجهز طلبه. بلا تحميل تطبيق.</p>
+      <div class="cta"><a class="btn acc" href="app.html#/signup" id="tri">جرّب مجاناً 7 أيام</a><a class="btn ghost" href="#how" data-t style="background:transparent;color:#fff;border-color:#ffffff40">كيف بيشتغل؟</a></div></div>
+    <div class="phone"><div class="lg">☕</div><b data-t>كافيه المسا</b><p class="mute small" data-t>رقم طلبك</p><div class="n">27</div><div class="bar2"></div>
+      <div class="st"><span data-t>استلمنا</span><span data-t>بالتحضير</span><span data-t>جاهز</span></div><div class="al">🔔 <span data-t>التنبيه مفعّل</span></div></div>
+  </div>
+</header>
+
+<section id="how"><h2 data-t>3 خطوات وبس</h2><p class="sub" data-t>أسهل من جهاز النداء نفسه</p>
+  <div class="steps3">
+    <div class="s3"><div class="k">1</div><b data-t>الكاشير بيكبس «طلب جديد»</b><p data-t>بيطلع رقم الطلب ورمز QR على الشاشة فوراً.</p></div>
+    <div class="s3"><div class="k">2</div><b data-t>الزبون بيمسح الرمز</b><p data-t>بتفتح عنده صفحة فيها رقمه وحالة طلبه، بلا تحميل أي تطبيق.</p></div>
+    <div class="s3"><div class="k">3</div><b data-t>بتكبس «جاهز»</b><p data-t>بيرن جوال الزبون وبيهتز وبيوصله إشعار. وإذا ما إجا، بتناديه مرة تانية بكبسة.</p></div>
+  </div></section>
+
+<section><h2 data-t>أكثر من مجرد نداء</h2><p class="sub" data-t>صفحة الانتظار صارت إعلان لمطعمك</p>
+  <div class="steps3">
+    <div class="s3"><div class="k">🎨</div><b data-t>بهوية مطعمك</b><p data-t>لوغو وألوان مطعمك على صفحة الزبون.</p></div>
+    <div class="s3"><div class="k">🔥</div><b data-t>عروض ومنيو</b><p data-t>الزبون بيتفرج على عروضك ومنيوك وهو عم يستنى.</p></div>
+    <div class="s3"><div class="k">⭐</div><b data-t>تقييم ومتابعة</b><p data-t>بعد الاستلام بيقيّم تجربته وبيتابعك على إنستغرام وواتساب.</p></div>
+    <div class="s3"><div class="k">📊</div><b data-t>إحصائيات</b><p data-t>أوقات الذروة، مدة التحضير، وأداء كل كاشير.</p></div>
+  </div></section>
+
+<section><h2 data-t>ليش دورك؟</h2><p class="sub"></p>
+  <div class="vs"><div class="card"><h3 data-t>أجهزة النداء التقليدية</h3><ul>
+      <li>❌ <span data-t>طقم الأجهزة بيكلف مئات الدولارات</span></li><li>❌ <span data-t>بتخرب وبتضيع وبدها شحن</span></li><li>❌ <span data-t>مدى محدود جوّا المطعم</span></li><li>❌ <span data-t>ما بتعطيك أي معلومة عن زبائنك</span></li></ul></div>
+    <div class="card" style="border:2px solid var(--acc)"><h3 data-t>دورك</h3><ul>
+      <li>✅ <span data-t>اشتراك شهري بسيط</span></li><li>✅ <span data-t>جوال الزبون هو الجهاز</span></li><li>✅ <span data-t>بيشتغل على أي جهاز عندك</span></li><li>✅ <span data-t>إحصائيات وتقييمات وتسويق</span></li></ul></div></div></section>
+
+<section id="prices"><h2 data-t>الأسعار</h2><p class="sub" id="trs"></p>
+  <div class="seg" id="seg" style="display:flex;width:max-content;margin:0 auto 18px"><button data-p="m" class="on">شهري</button><button data-p="y">سنوي</button></div>
+  <div class="plans" id="pl"></div></section>
+
+<section style="text-align:center"><a class="btn acc" href="app.html#/signup" id="tri2" style="min-height:58px;font-size:18px;padding:14px 30px">ابدأ هلق</a>
+  <p class="mute small" style="margin-top:14px"><a id="apk" data-t>📱 تحميل تطبيق أندرويد للكاشير</a></p></section>
+<footer>© 2026 <span data-t>دورك</span></footer>
+
+<script type="module">
+import { db, configured, N, doc, getDoc, platformOf } from "./fb.js";
+import { t, lang, setLang } from "./i18n.js";
+import { APK_URL } from "./config.js";
+const $ = (s) => document.querySelector(s);
+let P = platformOf(), period = "m";
+const NAMES = { basic: "كاشير واحد", duo: "كاشيرين", unlimited: "مفتوحة" };
+function texts() {
+  document.querySelectorAll("[data-t]").forEach((e) => { e.dataset.ar ??= e.textContent; e.textContent = t(e.dataset.ar); });
+  $("#lng").textContent = lang === "ar" ? "EN" : "ع";
+  $("#tri").textContent = t("جرّب مجاناً {d} أيام", { d: P.trialDays }); $("#tri2").textContent = t("ابدأ هلق");
+  $("#trs").textContent = t("{d} أيام تجربة مجانية بكل الميزات، بدون أي دفع", { d: P.trialDays });
+  document.querySelectorAll("#seg button").forEach((b) => (b.textContent = t(b.dataset.p === "m" ? "شهري" : "سنوي")));
+  $("#apk").href = APK_URL;
+  plans();
+}
+function plans() {
+  const c = (k) => P.plans[k].cashiers;
+  $("#pl").innerHTML = ["basic", "duo", "unlimited"].map((k) => `<div class="plan ${k === "duo" ? "on" : ""}"><b>${t(NAMES[k])}</b>
+    <div class="pr">${P.plans[k][period]}$<small>/${t(period === "m" ? "شهر" : "سنة")}</small></div><ul>
+    <li>${c(k) >= 999 ? t("عدد مفتوح من الكاشيرية") : t("{n} كاشير", { n: c(k) })}</li><li>${t("نداء الزبون وتنبيه")}</li><li>${t("لوغو وألوان وعروض ومنيو")}</li>
+    <li class="${k === "unlimited" ? "" : "no"}">${t("إحصائيات مفصّلة")}</li><li class="${k === "unlimited" ? "" : "no"}">${t("فروع متعددة")}</li></ul></div>`).join("");
+}
+$("#lng").onclick = () => { setLang(lang === "ar" ? "en" : "ar"); texts(); };
+document.querySelectorAll("#seg button").forEach((b) => (b.onclick = () => { period = b.dataset.p; document.querySelectorAll("#seg button").forEach((x) => x.classList.toggle("on", x === b)); plans(); }));
+texts();
+if (configured) getDoc(doc(db, N.cfg, "platform")).then((s) => { if (s.exists()) { P = platformOf(s.data()); texts(); } }).catch(() => {});
+</script>
+</body>
+</html>

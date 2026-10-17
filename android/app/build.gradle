@@ -1,0 +1,24 @@
+plugins { id 'com.android.application' }
+// كلمة سر مفتاح التوقيع: من أسرار GitHub إن وُجدت، وإلا من الملف المرافق
+def ksPass = System.getenv('KEYSTORE_PASSWORD') ?: new File(rootDir, 'keystore-password.txt').text.trim()
+android {
+    namespace 'com.dawrak.app'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.dawrak.app'
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName '1.0.' + (System.getenv('VERSION_CODE') ?: '1')
+    }
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KEYSTORE_FILE') ?: '../dawrak.keystore')
+            storePassword ksPass
+            keyAlias 'dawrak'
+            keyPassword ksPass
+        }
+    }
+    buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

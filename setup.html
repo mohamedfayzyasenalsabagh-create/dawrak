@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>دورك · نسخ قواعد الحماية</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main style="max-width:560px">
+  <div class="card" style="text-align:center">
+    <h2>🔐 قواعد حماية دورك</h2>
+    <p class="mute" style="margin-bottom:16px">اكبس الزر لتنسخ القواعد، وبعدين الصقها بـ Firebase ← Firestore ← Rules ← Publish</p>
+    <button class="btn acc block" id="cp" style="min-height:64px;font-size:20px">📋 انسخ القواعد</button>
+    <p id="ok" class="hide" style="margin-top:12px;color:var(--ok);font-weight:800">✓ انتسخت! روح الصقها هلق</p>
+  </div>
+  <textarea id="tx" class="inp" style="min-height:240px;font-family:monospace;font-size:12px;direction:ltr" readonly></textarea>
+</main>
+<script>
+fetch("firestore.rules", { cache: "no-store" }).then((r) => r.text()).then((t) => (tx.value = t));
+cp.onclick = async () => {
+  try { await navigator.clipboard.writeText(tx.value); } catch { tx.select(); document.execCommand("copy"); }
+  ok.classList.remove("hide");
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# اختبار النظام كامل على محاكي Firebase بمتصفح آلي
+name: اختبار دورك
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["android/**", "*.md"]
+  workflow_dispatch:
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright@1.47.2 && npx playwright install --with-deps chromium
+      - run: npm test

@@ -1,0 +1,83 @@
+rules_version = '2';
+// قواعد حماية دورك
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function platExists() { return exists(/databases/$(database)/documents/config/platform); }
+    function isAdmin() { return signed() && platExists() && get(/databases/$(database)/documents/config/platform).data.ownerUid == uid(); }
+    function hasUser() { return signed() && exists(/databases/$(database)/documents/users/$(uid())); }
+    function me() { return get(/databases/$(database)/documents/users/$(uid())).data; }
+    function inRest(rid) { return hasUser() && me().rid == rid; }
+    function isOwner(rid) { return inRest(rid) && me().role == 'owner'; }
+    function rest(rid) { return get(/databases/$(database)/documents/restaurants/$(rid)).data; }
+    function active(rid) { return rest(rid).status != 'stopped' && rest(rid).expiresAt > request.time; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function isStr(v, max) { return v is string && v.size() <= max; }
+
+    // إعدادات المنصة: الأسعار وحساب الدفع (عامة للقراءة)
+    match /config/platform {
+      allow read: if true;
+      allow create: if signed() && request.resource.data.ownerUid == uid();
+      allow update: if isAdmin() && request.resource.data.ownerUid == resource.data.ownerUid;
+    }
+
+    // حسابات الفريق: صاحب مطعم أو كاشير
+    match /users/{u} {
+      allow get: if signed() && (u == uid() || isAdmin() || isOwner(resource.data.rid));
+      allow list: if isAdmin() || isOwner(resource.data.rid);
+      allow create: if signed() && (
+        (u == uid() && request.resource.data.role == 'owner'
+          && getAfter(/databases/$(database)/documents/restaurants/$(request.resource.data.rid)).data.ownerUid == uid())
+        || (u != uid() && request.resource.data.role == 'cashier' && isOwner(request.resource.data.rid)
+          && isStr(request.resource.data.name, 60)));
+      allow update: if isAdmin() || (isOwner(resource.data.rid) && resource.data.role == 'cashier'
+        && request.resource.data.rid == resource.data.rid && request.resource.data.role == 'cashier');
+      allow delete: if isAdmin() || (isOwner(resource.data.rid) && resource.data.role == 'cashier');
+    }
+
+    // المطاعم: بياناتها العامة (الاسم واللوغو والألوان) يقرأها الزبون
+    match /restaurants/{rid} {
+      allow read: if true;
+      allow create: if signed() && !exists(/databases/$(database)/documents/users/$(uid()))
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.plan == 'trial' && request.resource.data.status == 'active'
+        && request.resource.data.expiresAt <= request.time + duration.value(31, 'd')
+        && isStr(request.resource.data.name, 80);
+      allow update: if isAdmin()
+        || (isOwner(rid) && changed().hasOnly(['name', 'nameEn', 'logo', 'color', 'color2', 'links', 'branches', 'counters', 'phone']))
+        || (inRest(rid) && changed().hasOnly(['counters']));
+      allow delete: if isAdmin();
+
+      // صور المنيو والعروض
+      match /media/{m} {
+        allow read: if true;
+        allow write: if isOwner(rid);
+      }
+
+      // الطلبات
+      match /orders/{o} {
+        allow get: if true; // الزبون بيعرف رقم الطلب العشوائي من رمز QR
+        allow list: if inRest(rid) || isAdmin();
+        allow create: if inRest(rid) && (active(rid) || o == 'preview')
+          && request.resource.data.status == 'new' && request.resource.data.by == uid();
+        allow update: if inRest(rid)
+          || (changed().hasOnly(['opened', 'picked', 'rating'])
+              && (!('rating' in changed()) || (!('rating' in resource.data)
+                  && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5))
+              && (!('opened' in changed()) || request.resource.data.opened == true)
+              && (!('picked' in changed()) || request.resource.data.picked == true));
+        allow delete: if isOwner(rid);
+      }
+    }
+
+    // دفعات الاشتراك عبر شام كاش
+    match /payments/{p} {
+      allow get: if isAdmin() || inRest(resource.data.rid);
+      allow list: if isAdmin() || inRest(resource.data.rid);
+      allow create: if isOwner(request.resource.data.rid) && request.resource.data.status == 'pending'
+        && request.resource.data.by == uid() && request.resource.data.img is string && request.resource.data.img.size() < 1000000;
+      allow update: if isAdmin();
+    }
+  }
+}

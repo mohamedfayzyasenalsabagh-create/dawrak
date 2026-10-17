@@ -1,0 +1,11 @@
+{
+  "name": "dawrak",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only auth,firestore --project demo-dawrak \"node tests/e2e.mjs\""
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.29.0"
+  }
+}
