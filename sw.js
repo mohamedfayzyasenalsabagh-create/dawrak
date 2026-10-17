@@ -1,13 +1,14 @@
 // عامل الخدمة: يعرض إشعار "طلبك جاهز" ويفتح الصفحة عند الضغط عليه
-const V = "dawrak-v1";
-const CORE = ["o.html", "o.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
+const V = "dawrak-v2";
+const INFO = "dawrak-push"; // معلومات آخر طلب لعرض الإشعار
+const CORE = ["o.html", "o.js", "push.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(V).then((c) => c.addAll(CORE)).catch(() => {}));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== INFO).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 // الشبكة أولاً، والنسخة المحفوظة عند ضعف الإنترنت
 self.addEventListener("fetch", (e) => {
@@ -25,4 +26,24 @@ self.addEventListener("notificationclick", (e) => {
     for (const c of cs) if (c.url === url && "focus" in c) return c.focus();
     return self.clients.openWindow(url);
   }));
+});
+
+// الصفحة بتبعت معلومات الطلب لنعرضها بالإشعار
+self.addEventListener("message", (e) => {
+  if (!e.data || e.data.type !== "order") return;
+  e.waitUntil(caches.open(INFO).then((c) => c.put("/__order", new Response(JSON.stringify({ ...e.data, ts: Date.now() })))));
+});
+// إشعار من الكاشير: "طلبك جاهز" حتى لو الجوال مقفل أو المتصفح مسكّر
+self.addEventListener("push", (e) => {
+  e.waitUntil((async () => {
+    let o = null;
+    try { const r = await (await caches.open(INFO)).match("/__order"); if (r) o = await r.json(); } catch {}
+    const title = (o && o.title) || "🔔 طلبك جاهز!";
+    await self.registration.showNotification(title, {
+      body: (o && o.body) || "تفضل استلم طلبك",
+      icon: (o && o.icon) || "icon-192.png", badge: "icon-192.png",
+      tag: (o && o.tag) || "dawrak", renotify: true, requireInteraction: true,
+      vibrate: [500, 200, 500, 200, 800], data: { url: (o && o.url) || "./" }
+    });
+  })());
 });

@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -22,6 +23,8 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 // تطبيق دورك: غلاف يفتح الموقع نفسه، فأي تحديث على الموقع بيوصل للتطبيق تلقائياً
 public class MainActivity extends Activity {
@@ -51,7 +54,8 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " DawrakApp/1");
+        s.setUserAgentString(s.getUserAgentString() + " DawrakApp/2");
+        web.addJavascriptInterface(new Bridge(), "DawrakApp");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -93,6 +97,34 @@ public class MainActivity extends Activity {
 
         if (b != null) web.restoreState(b); else web.loadUrl(HOME);
         web.postDelayed(this::hideSplash, 8000);
+    }
+
+    // جسر بين الموقع والتطبيق: إرسال إشعار "طلبك جاهز" لجوال الزبون
+    // (المتصفح بيمنع هالطلب، والتطبيق بيبعته مباشرة)
+    class Bridge {
+        @JavascriptInterface
+        public void push(final String endpoint, final String auth) {
+            if (endpoint == null || !endpoint.startsWith("https://")) return;
+            new Thread(() -> {
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(endpoint).openConnection();
+                    c.setRequestMethod("POST");
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(15000);
+                    c.setRequestProperty("Authorization", auth);
+                    c.setRequestProperty("TTL", "900");
+                    c.setRequestProperty("Urgency", "high");
+                    c.setDoOutput(true);
+                    c.setFixedLengthStreamingMode(0);
+                    c.getOutputStream().close();
+                    c.getResponseCode();
+                } catch (Exception ignored) {
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+            }).start();
+        }
     }
 
     @Override

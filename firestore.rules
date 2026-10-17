@@ -62,7 +62,9 @@ service cloud.firestore {
         allow create: if inRest(rid) && (active(rid) || o == 'preview')
           && request.resource.data.status == 'new' && request.resource.data.by == uid();
         allow update: if inRest(rid)
-          || (changed().hasOnly(['opened', 'picked', 'rating'])
+          || (changed().hasOnly(['opened', 'picked', 'rating', 'push'])
+              && (!('push' in changed()) || (request.resource.data.push is string && request.resource.data.push.size() < 1000
+                  && request.resource.data.push.matches('https://.*')))
               && (!('rating' in changed()) || (!('rating' in resource.data)
                   && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5))
               && (!('opened' in changed()) || request.resource.data.opened == true)

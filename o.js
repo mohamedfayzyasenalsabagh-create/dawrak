@@ -1,6 +1,7 @@
 // صفحة الزبون: رقم الطلب وحالته، والتنبيه لما يجهز
 import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, orderBy } from "./fb.js";
 import { t, lang, useAuto } from "./i18n.js";
+import { VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
 
 useAuto(); // صفحة الزبون دائماً حسب لغة جواله
 const $ = (s) => document.querySelector(s);
@@ -45,13 +46,15 @@ async function start() {
     if (!s.exists()) return fail(t("ما لقينا الطلب"));
     const prev = O; O = s.data();
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
+    if (!prev && mem.alerts) subscribePush();
     react(prev); render();
   }, () => fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")));
 
   loadMedia();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   window.addEventListener("online", net); window.addEventListener("offline", net); net();
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && mem.alerts) lock(); });
+  document.addEventListener("visibilitychange", backToPage);
+  window.addEventListener("pageshow", backToPage);
 }
 
 function net() {
@@ -74,6 +77,25 @@ async function enableAlerts() {
   try { navigator.vibrate && navigator.vibrate(80); } catch {}
   try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch {}
   lock(); rendered = ""; render();
+  subscribePush();
+}
+// اشتراك بإشعارات الجوال: بتوصل حتى لو الشاشة مقفلة أو المتصفح مسكّر
+async function subscribePush() {
+  try {
+    if (!("PushManager" in window) || Notification.permission !== "granted") return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(VAPID_PUBLIC) });
+    // معلومات الإشعار لعامل الخدمة
+    reg.active && reg.active.postMessage({ type: "order", url: location.href, title: "🔔 " + rname() + " · " + t("طلبك جاهز!"), body: t("طلب رقم {n} جاهز، تفضل استلمه", { n: O.num }), icon: R.logo || "icon-192.png", tag: KEY });
+    if (O.push !== sub.endpoint) await updateDoc(doc(db, N.rest, RID, "orders", OID), { push: sub.endpoint });
+  } catch (e) { console.warn("push", e); }
+}
+// لما يرجع الزبون للصفحة والطلب جاهز: نرجع نرن
+async function backToPage() {
+  if (document.visibilityState !== "visible") return;
+  if (mem.alerts) lock();
+  if (O && O.status === "ready" && !mem.picked) { try { await ac?.resume(); } catch {} ring(); }
 }
 async function lock() { try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => (wake = null)); } } catch {} }
 function tone(f, d, when = 0) {

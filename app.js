@@ -7,6 +7,7 @@ import {
 } from "./fb.js";
 import { t, lang, setLang } from "./i18n.js";
 import { APK_URL } from "./config.js";
+import { sendPush } from "./push.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -297,7 +298,7 @@ function viewCashier(v) {
     const fresh = ready.filter((o) => now - rt(o) < 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const old = ready.filter((o) => now - rt(o) >= 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const row = (o, cls) => {
-      const flags = [o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.picked ? `✓ ${t("استلم")}` : "", o.rating ? "⭐".repeat(o.rating) : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
+      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.picked ? `✓ ${t("استلم")}` : "", o.rating ? "⭐".repeat(o.rating) : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
       return `<div class="ord ${cls}" data-id="${o.id}"><div class="n" data-qr>${o.num}</div>
         <div class="m"><b>${o.status === "ready" ? t("جاهز") + " · " + fmtTime(o.readyAt) : t("بالتحضير") + " · " + fmtTime(o.createdAt)}</b><br>${flags}</div>
         <div class="acts">${o.status === "new" ? `<button class="btn ok" data-ready>✓ ${t("جاهز")}</button>`
@@ -312,8 +313,8 @@ function viewCashier(v) {
     const card = e.target.closest(".ord"); if (!card) return;
     const id = card.dataset.id, o = orders.find((x) => x.id === id), ref = doc(db, N.rest, S.rid, "orders", id);
     try {
-      if (e.target.closest("[data-ready]")) await updateDoc(ref, { status: "ready", readyAt: serverTimestamp() });
-      else if (e.target.closest("[data-call]")) { await updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() }); toast(t("رنّينا للزبون مرة تانية 🔔")); }
+      if (e.target.closest("[data-ready]")) { await updateDoc(ref, { status: "ready", readyAt: serverTimestamp() }); pushTo(o); }
+      else if (e.target.closest("[data-call]")) { await updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() }); pushTo(o); toast(t("رنّينا للزبون مرة تانية 🔔")); }
       else if (e.target.closest("[data-undo]")) await updateDoc(ref, { status: "new", readyAt: null });
       else if (e.target.closest("[data-qr]")) showQr(o);
     } catch (er) { toast(errMsg(er)); }
@@ -338,6 +339,13 @@ function viewCashier(v) {
       showQr({ id: oref.id, num });
     } catch (e) { console.warn(e); toast(errMsg(e)); }
   }
+}
+// إشعار لجوال الزبون حتى لو الشاشة مقفلة (بيشتغل من تطبيق الكاشير)
+let pushWarned = false;
+async function pushTo(o) {
+  if (!o || !o.push) return;
+  const ok = await sendPush(o.push);
+  if (!ok && !IN_APP && !pushWarned) { pushWarned = true; toast(t("لتوصل الرنة للزبون وجواله مقفل، استخدم تطبيق الكاشير"), 5000); }
 }
 function showQr(o) {
   const url = customerUrl(o.id);

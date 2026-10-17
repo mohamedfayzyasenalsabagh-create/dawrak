@@ -99,6 +99,14 @@ try {
     try { await fb.getDocs(fb.collection(fb.db, fb.N.pay)); return false; } catch (e) { return e.code; }
   });
   if (!denied2) throw new Error("الزبون قدر يقرأ الدفعات!"); ok("الدفعات محمية");
+  const pushOk = await C.evaluate(async (u) => {
+    const fb = await import("./fb.js"); const q = new URL(u).searchParams; const ref = fb.doc(fb.db, fb.N.rest, q.get("r"), "orders", q.get("o"));
+    await fb.updateDoc(ref, { push: "https://fcm.googleapis.com/fcm/send/test" });
+    try { await fb.updateDoc(ref, { push: "javascript:alert(1)" }); return "bad"; } catch { return "ok"; }
+  }, url);
+  if (pushOk !== "ok") throw new Error("قاعدة الإشعار غلط"); ok("الزبون بيقدر يسجّل اشتراك الإشعار بس برابط صحيح");
+  const auth = await C.evaluate(async () => (await import("./push.js")).vapidAuth("https://fcm.googleapis.com/fcm/send/x"));
+  if (!/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=/.test(auth)) throw new Error("توقيع الإشعار غلط"); ok("توقيع إشعار الجوال صحيح بالمتصفح");
 
   // 8) كاشير جديد
   await O.goto(BASE + "app.html#/r/team"); await O.waitForSelector("#add");
