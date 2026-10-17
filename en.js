@@ -109,5 +109,5 @@ export const EN = {
   "كلمة السر لازم تكون 6 أحرف أو أكثر": "Password must be 6+ characters", "البريد غير صحيح": "Invalid email",
   "ما في إنترنت، جرّب مرة تانية": "No internet, please try again", "محاولات كتيرة، استنى شوي وجرّب": "Too many attempts, wait a bit and retry",
   "ما عندك صلاحية لهالعملية": "You don't have permission for this", "صار خطأ، جرّب مرة تانية": "Something went wrong, please try again",
-  "قيد المراجعة": "Under review", "مقبول": "Approved", "مرفوض": "Rejected", "إنستغرام": "Instagram", "فيسبوك": "Facebook", "الموقع": "Location"
+  "امسح الرمز من تطبيق شام كاش": "Scan the code with the Sham Cash app", "صورة QR شام كاش": "Sham Cash QR image", "بتظهر للمطعم ليمسحها ويدفع": "Shown to restaurants so they can scan and pay", "رفع صورة": "Upload image", "قيد المراجعة": "Under review", "مقبول": "Approved", "مرفوض": "Rejected", "إنستغرام": "Instagram", "فيسبوك": "Facebook", "الموقع": "Location"
 };

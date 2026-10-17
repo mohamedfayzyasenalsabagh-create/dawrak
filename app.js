@@ -592,8 +592,9 @@ async function viewPlan(v) {
       <div class="seg"><button data-p="m" class="on">${t("شهري")}</button><button data-p="y">${t("سنوي")} <span class="pill acc">${t("شهرين مجاناً")}</span></button></div>
       <div class="plans" id="pl"></div></div>
     <div class="card"><h2>${t("الدفع عبر شام كاش")}</h2>
+      ${P.shamcash.qr ? `<div style="text-align:center;margin-bottom:12px"><img src="${P.shamcash.qr}" alt="QR" style="width:min(70vw,260px);border-radius:16px;border:1px solid var(--line);background:#fff;padding:8px"><p class="mute small">${t("امسح الرمز من تطبيق شام كاش")}</p></div>` : ""}
       <ol style="padding-inline-start:20px;line-height:2">
-        <li>${t("حوّل المبلغ")} <b id="amt"></b> ${t("على حساب شام كاش:")} <b dir="ltr">${esc(P.shamcash.account || "—")}</b>${P.shamcash.name ? ` (${esc(P.shamcash.name)})` : ""}</li>
+        <li>${t("حوّل المبلغ")} <b id="amt"></b>${P.shamcash.account || !P.shamcash.qr ? ` ${t("على حساب شام كاش:")} <b dir="ltr">${esc(P.shamcash.account || "—")}</b>` : ""}${P.shamcash.name ? ` (${esc(P.shamcash.name)})` : ""}</li>
         <li>${t("صوّر إيصال التحويل")}</li><li>${t("ارفع الصورة هون، ومنفعّل اشتراكك خلال ساعات")}</li></ol>
       <div id="er"></div><button class="btn ghost block" id="rc" style="margin-top:10px">📷 ${t("ارفع صورة الإيصال")}</button><img id="rcp" style="display:none;max-height:260px;margin:10px auto;border-radius:12px">
       <button class="btn acc block" id="send" style="margin-top:10px" disabled>${t("أرسل للمراجعة")}</button>
@@ -748,15 +749,21 @@ async function adminSettings(v) {
         <label class="field"><span>${t("عدد الكاشيرية")}</span><input class="inp" type="number" data-k="${k}.cashiers" value="${P.plans[k].cashiers}"></label></div>`).join("")}
       <label class="field"><span>${t("أيام التجربة المجانية")}</span><input class="inp" type="number" id="td" value="${P.trialDays}"></label></div>
     <div class="card"><h2>${t("الدفع والتواصل")}</h2>
+      <div class="row" style="align-items:center;margin-bottom:14px"><div id="qrp" style="flex:none;width:110px;height:110px;border-radius:14px;border:1px solid var(--line);background:#fff center/contain no-repeat;${P.shamcash.qr ? `background-image:url('${P.shamcash.qr}')` : ""};display:grid;place-items:center;font-size:12px;color:var(--mute)">${P.shamcash.qr ? "" : "QR"}</div>
+        <div><b>${t("صورة QR شام كاش")}</b><p class="mute small" style="margin:4px 0 8px">${t("بتظهر للمطعم ليمسحها ويدفع")}</p><button class="btn sm ghost" id="qru">${t("رفع صورة")}</button> <button class="btn sm bad ${P.shamcash.qr ? "" : "hide"}" id="qrd">${t("حذف")}</button></div></div>
       <label class="field"><span>${t("حساب شام كاش (الرقم أو العنوان)")}</span><input class="inp" id="sa" dir="ltr" value="${esc(P.shamcash.account)}"></label>
       <label class="field"><span>${t("اسم صاحب الحساب")}</span><input class="inp" id="sn" value="${esc(P.shamcash.name)}"></label>
       <label class="field"><span>${t("رقم واتساب الدعم")}</span><input class="inp" id="wa" dir="ltr" value="${esc(P.whatsapp)}"></label>
       <button class="btn acc" id="sv">${t("حفظ")}</button></div>`;
+  let qr = P.shamcash.qr || "";
+  const showQr = () => { const b = $("#qrp"); b.style.backgroundImage = qr ? `url('${qr}')` : ""; b.textContent = qr ? "" : "QR"; $("#qrd").classList.toggle("hide", !qr); };
+  $("#qru").onclick = async () => { const [f] = await pickFile(); if (!f) return; qr = await compress(f, 700, 0.9, "image/png"); showQr(); };
+  $("#qrd").onclick = () => { qr = ""; showQr(); };
   $("#sv").onclick = () => busy($("#sv"), async () => {
     const plans = JSON.parse(JSON.stringify(P.plans));
     $$("[data-k]").forEach((i) => { const [k, f] = i.dataset.k.split("."); plans[k][f] = Math.max(0, Number(i.value) || 0); });
     try {
-      await updateDoc(doc(db, N.cfg, "platform"), { plans, trialDays: Math.max(1, +$("#td").value || 7), shamcash: { account: $("#sa").value.trim(), name: $("#sn").value.trim() }, whatsapp: $("#wa").value.trim() });
+      await updateDoc(doc(db, N.cfg, "platform"), { plans, trialDays: Math.max(1, +$("#td").value || 7), shamcash: { account: $("#sa").value.trim(), name: $("#sn").value.trim(), qr }, whatsapp: $("#wa").value.trim() });
       await loadPlatform(); toast(t("انحفظ ✓"));
     } catch (e) { toast(errMsg(e)); }
   });

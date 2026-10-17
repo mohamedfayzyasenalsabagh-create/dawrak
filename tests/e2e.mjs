@@ -47,7 +47,7 @@ try {
   await A.click("#go");
   await A.waitForSelector("text=أرباح هالشهر"); ok("صاحب النظام فعّل لوحته");
   await A.goto(BASE + "app.html#/admin/settings"); await A.waitForSelector("#sa");
-  await A.fill("#sa", "SHAM-12345"); await A.fill("#sn", "Mohamed"); await A.click("#sv");
+  await A.fill("#sa", "SHAM-12345"); await A.fill("#sn", "Mohamed"); await upload(A, "#qru"); await A.click("#sv");
   await A.waitForSelector("text=انحفظ"); ok("إعدادات شام كاش انحفظت");
 
   // 2) تسجيل مطعم
@@ -125,7 +125,7 @@ try {
   await O.goto(BASE + "app.html#/r/stats"); await O.waitForSelector("text=متوسط مدة التحضير"); ok("الإحصائيات المفصّلة شغالة");
 
   // 11) الدفع والتفعيل
-  await O.goto(BASE + "app.html#/r/plan"); await O.waitForSelector("text=SHAM-12345");
+  await O.goto(BASE + "app.html#/r/plan"); await O.waitForSelector("text=SHAM-12345"); await O.waitForSelector('img[alt="QR"]');
   await O.click('.plan[data-k="duo"]'); await upload(O, "#rc");
   await O.waitForSelector("#send:not([disabled])"); await O.click("#send");
   await O.waitForSelector("text=قيد المراجعة"); ok("المطعم رفع إيصال شام كاش");

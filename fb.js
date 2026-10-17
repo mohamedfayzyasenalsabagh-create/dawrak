@@ -56,7 +56,7 @@ export const DEFAULT_PLATFORM = {
     duo: { m: 15, y: 150, cashiers: 2 },
     unlimited: { m: 25, y: 250, cashiers: 999 }
   },
-  shamcash: { name: "", account: "" },
+  shamcash: { name: "", account: "", qr: "" },
   whatsapp: ""
 };
 
