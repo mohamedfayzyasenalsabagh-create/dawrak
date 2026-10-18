@@ -45,6 +45,7 @@ async function start() {
   onSnapshot(doc(db, N.rest, RID, "orders", OID), (s) => {
     // الطلب لسا ما وصل (نت الكاشير ضعيف): منستنى وما منوقف
     if (!s.exists()) { if (!O) root.innerHTML = `<div class="center"><div class="spin"></div><p>${esc(t("عم نستنى اتصال المطعم…"))}</p></div>`; return; }
+    if (s.metadata.hasPendingWrites) return; // منعتمد بس على اللي أكّده الخادم
     const prev = O; O = s.data();
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
     if (!prev && mem.alerts) subscribePush();

@@ -88,7 +88,6 @@ try {
   await O.click("[data-call]");
   await C.waitForSelector(".ready.show"); ok("زر «نادي مرة تانية» رجّع رنّ عند الزبون");
   await C.click("#pk"); await C.waitForSelector(".ready.show", { state: "detached" });
-  console.log("DBG after pk:", await C.evaluate(() => JSON.stringify(localStorage)));
 
   // 7) الحماية: الزبون ما بيقدر يغيّر حالة الطلب
   const denied = await C.evaluate(async (u) => {
@@ -139,10 +138,7 @@ try {
   await O.click("#addof"); await O.fill("#ot", "قهوتين بسعر وحدة"); await O.click("#os");
   await O.waitForSelector("#ofs >> text=قهوتين بسعر وحدة");
   await upload(O, "#addmn"); await O.waitForSelector("#mn .im"); await O.waitForTimeout(1500);
-  console.log("DBG before reload:", await C.evaluate(() => JSON.stringify(localStorage)), await C.$(".ready.show") ? "overlay" : "no overlay");
   await C.reload(); await C.waitForSelector("text=قهوتين بسعر وحدة"); ok("العرض ظهر بصفحة الزبون");
-  await C.waitForTimeout(1500);
-  console.log("DBG after reload:", await C.evaluate(() => JSON.stringify(localStorage)), await C.$(".ready.show") ? "overlay" : "no overlay");
   await C.waitForSelector("#mn"); await C.click("#mn"); await C.waitForSelector(".menu img"); ok("المنيو بيتحمّل بس لما الزبون يكبس");
 
   // 10) الإحصائيات
