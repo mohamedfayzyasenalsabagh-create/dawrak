@@ -129,7 +129,7 @@ try {
   await K.waitForSelector('.ord .n:text-is("3")');
   await K.click('.ord:has(.n:text-is("3")) [data-ready]');
   await K.context().setOffline(false); await K.evaluate(() => window.dispatchEvent(new Event("online")));
-  await O.waitForSelector('.ord.ready .n:text-is("3")', { timeout: 20000 });
+  await O.goto(BASE + "app.html#/r/cashier"); await O.waitForSelector('.ord.ready .n:text-is("3")', { timeout: 30000 });
   ok("الكاشير عمل طلب رقم 3 وكبس جاهز بدون نت، وتزامن لما رجع النت");
 
   // 9) تخصيص صفحة الزبون

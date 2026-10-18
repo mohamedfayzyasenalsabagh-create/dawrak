@@ -7,7 +7,7 @@ import {
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
   collection, query, where, getDocs, onSnapshot, serverTimestamp, runTransaction, writeBatch,
-  orderBy, limit, Timestamp, increment, deleteField, getCountFromServer
+  orderBy, limit, Timestamp, increment, deleteField, getCountFromServer, enableNetwork, disableNetwork
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig, PREFIX } from "./config.js";
 
@@ -23,6 +23,11 @@ function makeDb() {
   catch { return getFirestore(app); }
 }
 export const db = configured ? makeDb() : null;
+// لما يرجع النت: نعيد الاتصال فوراً بدل ما نستنى
+if (db) {
+  window.addEventListener("offline", () => disableNetwork(db).catch(() => {}));
+  window.addEventListener("online", () => enableNetwork(db).catch(() => {}));
+}
 if (configured && EMU) {
   connectAuthEmulator(auth, `http://${EMU.host}:${EMU.auth}`, { disableWarnings: true });
   connectFirestoreEmulator(db, EMU.host, EMU.fs);
