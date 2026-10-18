@@ -1,0 +1,41 @@
+
+> test
+> firebase emulators:exec --only auth,firestore --project demo-dawrak "node tests/e2e.mjs"
+
+[33m[1m⚠  emulators:[22m[39m You are not currently authenticated so some features may not work correctly. Please run [1mfirebase login[22m to authenticate the CLI.
+[36m[1mi  emulators:[22m[39m Starting emulators: auth, firestore
+[36m[1mi  emulators:[22m[39m Detected demo project ID "demo-dawrak", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+[33m[1m⚠ [22m[39m It appears you are running in a CI environment. You can avoid downloading the Firestore Emulator repeatedly by caching the /home/runner/.cache/firebase/emulators directory.
+[36m[1mi  firestore:[22m[39m downloading cloud-firestore-emulator-v1.19.8.jar...
+
+[36m[1mi  firestore:[22m[39m Firestore Emulator logging to [1mfirestore-debug.log[22m
+[32m[1m✔  firestore:[22m[39m Firestore Emulator UI websocket is running on 9150.
+[36m[1mi [22m[39m Running script: [1mnode tests/e2e.mjs[22m
+✓ 1. صاحب النظام فعّل لوحته
+✓ 2. إعدادات شام كاش انحفظت
+✓ 3. المطعم سجّل وفتحت شاشة الكاشير
+✓ 4. طلب رقم 1 مع رمز QR
+✓ 5. الزبون شاف رقمه واسم المطعم
+✓ 6. الزبون فعّل التنبيه
+✓ 7. الكاشير شاف إنو الزبون فتح الصفحة
+✓ 8. وصل التنبيه للزبون: طلبك جاهز
+✓ 9. الزبون استلم وقيّم 5 نجوم وكتب ملاحظة، والكاشير شاف التقييم
+✓ 10. زر «نادي مرة تانية» رجّع رنّ عند الزبون
+✓ 11. الزبون ممنوع يعدّل حالة الطلب (permission-denied)
+✓ 12. الدفعات محمية
+✓ 13. الزبون بيقدر يسجّل اشتراك الإشعار بس برابط صحيح
+✓ 14. توقيع إشعار الجوال صحيح بالمتصفح
+✓ 15. صاحب المطعم أضاف كاشير: ahmad.egpgr
+✓ 16. الكاشير دخل وعمل طلب رقم 2، وما بيشوف لوحة صاحب المطعم
+✗ فشل: page.waitForSelector: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.ord.ready .n:text-is("3")') to be visible
+
+[33m[1m⚠ [22m[39m Script exited unsuccessfully (code 1)
+[36m[1mi  emulators:[22m[39m Shutting down emulators.
+[36m[1mi  firestore:[22m[39m Stopping Firestore Emulator
+[36m[1mi  auth:[22m[39m Stopping Authentication Emulator
+[36m[1mi  hub:[22m[39m Stopping emulator hub
+[36m[1mi  logging:[22m[39m Stopping Logging Emulator
+
+[1m[31mError:[39m[22m Script "[1mnode tests/e2e.mjs[22m" exited with code 1
