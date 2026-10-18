@@ -19,6 +19,7 @@ export const app = configured ? initializeApp(cfg) : null;
 export const auth = configured ? getAuth(app) : null;
 // نسخة محلية من البيانات على الجهاز: الكاشير بيكمّل شغله إذا قطع النت، وبتتزامن لما يرجع
 function makeDb() {
+  if (window.__DAWRAK_NOPERSIST) return getFirestore(app); // صفحة الزبون: دايماً من الخادم
   try { return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
   catch { return getFirestore(app); }
 }

@@ -147,7 +147,7 @@ function react(prev) {
   const calls = O.calls || 0;
   // الكاشير رجّع الطلب لـ"بالتحضير"
   if (O.status !== "ready") {
-    if (mem.lastCalls !== undefined) { delete mem.lastCalls; mem.picked = false; save(); stopRing(); }
+    if (prev && prev.status === "ready" && mem.lastCalls !== undefined) { delete mem.lastCalls; mem.picked = false; save(); stopRing(); }
     return;
   }
   // منقارن مع آخر نداء محفوظ على الجهاز، لحتى ما يرن مرة تانية عند تحديث الصفحة
