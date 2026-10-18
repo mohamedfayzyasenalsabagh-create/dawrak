@@ -145,12 +145,16 @@ async function notify() {
 // يُستدعى عند كل تغيير بالطلب: يرن إذا صار جاهز أو الكاشير نادى مرة تانية
 function react(prev) {
   const calls = O.calls || 0;
-  if (O.status === "ready") {
-    const fresh = !prev ? mem.lastCalls === undefined || calls > mem.lastCalls : prev.status !== "ready" || calls > (prev.calls || 0);
-    if (fresh) {
-      mem.lastCalls = calls; if (prev) mem.picked = false; save();
-      if (!mem.picked) { ring(); notify(); }
-    }
+  // الكاشير رجّع الطلب لـ"بالتحضير"
+  if (O.status !== "ready") {
+    if (mem.lastCalls !== undefined) { delete mem.lastCalls; mem.picked = false; save(); stopRing(); }
+    return;
+  }
+  // منقارن مع آخر نداء محفوظ على الجهاز، لحتى ما يرن مرة تانية عند تحديث الصفحة
+  const last = mem.lastCalls;
+  if (last === undefined || calls > last) {
+    mem.lastCalls = calls; if (last !== undefined) mem.picked = false; save();
+    if (!mem.picked) { ring(); notify(); }
   }
 }
 
