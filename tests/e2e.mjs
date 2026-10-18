@@ -82,12 +82,19 @@ try {
   await C.click("#pk"); await C.waitForSelector(".stars");
   await C.click('.stars button[data-r="5"]'); await C.waitForSelector("text=شكراً على تقييمك");
   await C.fill("#cm", "الخدمة سريعة"); await C.click("#cms"); await C.waitForSelector("text=وصلت ملاحظتك");
-  await O.waitForSelector("text=⭐⭐⭐⭐⭐"); ok("الزبون استلم وقيّم 5 نجوم وكتب ملاحظة، والكاشير شاف التقييم");
+  await O.waitForSelector("details.done"); await O.click("details.done summary");
+  await O.waitForSelector("text=⭐⭐⭐⭐⭐"); ok("الزبون استلم وقيّم 5 نجوم وكتب ملاحظة، والطلب انتقل لـ«طلبات منتهية» عند الكاشير");
+  if (await O.$("#ol > .olist .ord")) throw new Error("الطلب المستلم لسا بالقائمة");
 
-  // 6) نادي مرة تانية
-  await O.click("[data-call]");
+  // 6) نادي مرة تانية (طلب 2 ما استلمه الزبون)
+  await O.click("#newo"); await O.waitForSelector(".qrbox .bign"); const url2 = await O.getAttribute(".qr", "data-url"); await O.click("[data-ok]");
+  await C.goto(url2.replace(/^https?:\/\/[^/]+\//, BASE)); await C.waitForSelector("#en"); await C.click("#en");
+  await O.click(".olist .ord:not(.ready) [data-ready]"); await C.waitForSelector(".ready.show");
+  await C.evaluate(() => document.querySelector(".ready.show")?.remove());
+  await O.click(".olist .ord [data-call]");
   await C.waitForSelector(".ready.show"); ok("زر «نادي مرة تانية» رجّع رنّ عند الزبون");
   await C.click("#pk"); await C.waitForSelector(".ready.show", { state: "detached" });
+  await O.waitForSelector('details.done .ord .n:text-is("2")'); ok("الطلب انتقل لـ«طلبات منتهية» بعد ما الزبون كبس «استلمت»");
 
   // 7) الحماية: الزبون ما بيقدر يغيّر حالة الطلب
   const denied = await C.evaluate(async (u) => {
@@ -120,17 +127,17 @@ try {
   await K.waitForSelector("#newo");
   if (await K.$("text=الإحصائيات")) throw new Error("الكاشير شاف تبويب الإحصائيات");
   await K.click("#newo"); await K.waitForSelector(".qrbox .bign");
-  if ((await K.textContent(".qrbox .bign")).trim() !== "2") throw new Error("ترقيم الكاشير غلط"); await K.click("[data-ok]");
-  ok("الكاشير دخل وعمل طلب رقم 2، وما بيشوف لوحة صاحب المطعم");
+  if ((await K.textContent(".qrbox .bign")).trim() !== "3") throw new Error("ترقيم الكاشير غلط"); await K.click("[data-ok]");
+  ok("الكاشير دخل وعمل طلب رقم 3، وما بيشوف لوحة صاحب المطعم");
   await K.context().setOffline(true); await K.evaluate(() => window.dispatchEvent(new Event("offline")));
   await K.waitForSelector("#netbar:not(.hide)");
   await K.click("#newo"); await K.waitForSelector(".qrbox .bign");
-  if ((await K.textContent(".qrbox .bign")).trim() !== "3") throw new Error("رقم الطلب بدون نت غلط"); await K.click("[data-ok]");
-  await K.waitForSelector('.ord .n:text-is("3")');
-  await K.click('.ord:has(.n:text-is("3")) [data-ready]');
+  if ((await K.textContent(".qrbox .bign")).trim() !== "4") throw new Error("رقم الطلب بدون نت غلط"); await K.click("[data-ok]");
+  await K.waitForSelector('.ord .n:text-is("4")');
+  await K.click('.ord:has(.n:text-is("4")) [data-ready]');
   await K.context().setOffline(false); await K.evaluate(() => window.dispatchEvent(new Event("online")));
-  await O.goto(BASE + "app.html#/r/cashier"); await O.waitForSelector('.ord.ready .n:text-is("3")', { timeout: 30000 });
-  ok("الكاشير عمل طلب رقم 3 وكبس جاهز بدون نت، وتزامن لما رجع النت");
+  await O.goto(BASE + "app.html#/r/cashier"); await O.waitForSelector('.ord.ready .n:text-is("4")', { timeout: 30000 });
+  ok("الكاشير عمل طلب رقم 4 وكبس جاهز بدون نت، وتزامن لما رجع النت");
 
   // 9) تخصيص صفحة الزبون
   await O.goto(BASE + "app.html#/r/brand"); await O.waitForSelector("#n2");

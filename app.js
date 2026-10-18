@@ -302,26 +302,29 @@ function viewCashier(v) {
   $("#brs") && ($("#brs").onchange = (e) => { try { localStorage.setItem("dawrak-branch-" + S.rid, e.target.value); } catch {} viewCashier(v); });
   refreshBanner();
   const branch = myBranch();
-  let orders = [];
+  let orders = [], doneOpen = false;
   const draw = () => {
     const now = Date.now();
     const mine = orders.filter((o) => (o.branch || "main") === branch);
     const waiting = mine.filter((o) => o.status === "new").sort((a, b) => a.num - b.num);
-    const ready = mine.filter((o) => o.status === "ready");
+    const ready = mine.filter((o) => o.status === "ready" && !o.picked);
+    const done = mine.filter((o) => o.status === "ready" && o.picked).sort((a, b) => b.num - a.num);
     const rt = (o) => (toDate(o.readyAt) || new Date()).getTime();
     const fresh = ready.filter((o) => now - rt(o) < 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const old = ready.filter((o) => now - rt(o) >= 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const row = (o, cls) => {
-      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.picked ? `✓ ${t("استلم")}` : "", o.rating ? "⭐".repeat(o.rating) : "", o.comment ? "💬" : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
+      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.picked ? `✓ ${t("استلم")}` : o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.rating ? "⭐".repeat(o.rating) : "", o.comment ? "💬" : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
       return `<div class="ord ${cls}" data-id="${o.id}"><div class="n" data-qr>${o.num}</div>
         <div class="m"><b>${o.status === "ready" ? t("جاهز") + " · " + fmtTime(o.readyAt) : t("بالتحضير") + " · " + fmtTime(o.createdAt)}</b><br>${flags}</div>
-        <div class="acts">${o.status === "new" ? `<button class="btn ok" data-ready>✓ ${t("جاهز")}</button>`
-          : `<button class="btn sm acc" data-call>🔔 ${t("نادي مرة تانية")}</button><button class="btn sm ghost" data-undo title="${t("تراجع")}">↩</button>`}</div></div>`;
+        <div class="acts">${o.picked ? "" : o.status === "new" ? `<button class="btn ok" data-ready>✓ ${t("جاهز")}</button>`
+          : `<button class="btn sm acc" data-call>🔔 ${t("نادي مرة تانية")}</button><button class="btn sm ok" data-done title="${t("استلم طلبه")}">✓ ${t("استلم")}</button><button class="btn sm ghost" data-undo title="${t("تراجع")}">↩</button>`}</div></div>`;
     };
     $("#ol").innerHTML = !mine.length ? `<div class="empty">${t("ما في طلبات اليوم بعد. اكبس «طلب جديد» لتبلش")}</div>`
       : `${waiting.length ? `<div class="sec-t">${t("بالتحضير")} (${waiting.length})</div><div class="olist">${waiting.map((o) => row(o, "")).join("")}</div>` : ""}
          ${fresh.length ? `<div class="sec-t">${t("جاهز")} (${fresh.length})</div><div class="olist">${fresh.map((o) => row(o, "ready")).join("")}</div>` : ""}
-         ${old.length ? `<div class="sec-t">${t("طلبات سابقة")} (${old.length})</div><div class="olist">${old.map((o) => row(o, "ready old")).join("")}</div>` : ""}`;
+         ${old.length ? `<div class="sec-t">${t("جاهز ولسا ما استلم")} (${old.length})</div><div class="olist">${old.map((o) => row(o, "ready old")).join("")}</div>` : ""}
+         ${done.length ? `<details class="done" ${doneOpen ? "open" : ""}><summary class="sec-t" style="cursor:pointer">✓ ${t("طلبات منتهية")} (${done.length})</summary><div class="olist">${done.map((o) => row(o, "ready old")).join("")}</div></details>` : ""}`;
+    const d = $("#ol details.done"); if (d) d.ontoggle = () => (doneOpen = d.open);
   };
   $("#ol").onclick = async (e) => {
     const card = e.target.closest(".ord"); if (!card) return;
@@ -329,6 +332,7 @@ function viewCashier(v) {
     try {
       if (e.target.closest("[data-ready]")) { await write(updateDoc(ref, { status: "ready", readyAt: serverTimestamp() })); pushTo(o); }
       else if (e.target.closest("[data-call]")) { await write(updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() })); pushTo(o); toast(t("رنّينا للزبون مرة تانية 🔔")); }
+      else if (e.target.closest("[data-done]")) await write(updateDoc(ref, { picked: true }));
       else if (e.target.closest("[data-undo]")) await write(updateDoc(ref, { status: "new", readyAt: null }));
       else if (e.target.closest("[data-qr]")) showQr(o);
     } catch (er) { toast(errMsg(er)); }
