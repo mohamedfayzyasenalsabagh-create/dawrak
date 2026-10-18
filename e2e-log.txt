@@ -21,14 +21,17 @@
 ✓ 8. وصل التنبيه للزبون: طلبك جاهز
 ✓ 9. الزبون استلم وقيّم 5 نجوم وكتب ملاحظة، والكاشير شاف التقييم
 ✓ 10. زر «نادي مرة تانية» رجّع رنّ عند الزبون
+DBG after pk: {"dawrak-o-IXEq1gDkV4brQ6Fq3MUK-sgQD4fomiqJiDdnRgADy":"{\"alerts\":true,\"lastCalls\":1,\"picked\":true,\"rated\":5,\"commented\":true}","dawrak-lang":"ar"}
 ✓ 11. الزبون ممنوع يعدّل حالة الطلب (permission-denied)
 ✓ 12. الدفعات محمية
 ✓ 13. الزبون بيقدر يسجّل اشتراك الإشعار بس برابط صحيح
 ✓ 14. توقيع إشعار الجوال صحيح بالمتصفح
-✓ 15. صاحب المطعم أضاف كاشير: ahmad.gunhf
+✓ 15. صاحب المطعم أضاف كاشير: ahmad.2hhhy
 ✓ 16. الكاشير دخل وعمل طلب رقم 2، وما بيشوف لوحة صاحب المطعم
 ✓ 17. الكاشير عمل طلب رقم 3 وكبس جاهز بدون نت، وتزامن لما رجع النت
+DBG before reload: {"dawrak-o-IXEq1gDkV4brQ6Fq3MUK-sgQD4fomiqJiDdnRgADy":"{\"alerts\":true,\"picked\":false,\"rated\":5,\"commented\":true,\"lastCalls\":1}","dawrak-lang":"ar"} overlay
 ✓ 18. العرض ظهر بصفحة الزبون
+DBG after reload: {"dawrak-o-IXEq1gDkV4brQ6Fq3MUK-sgQD4fomiqJiDdnRgADy":"{\"alerts\":true,\"picked\":false,\"rated\":5,\"commented\":true,\"lastCalls\":1}","dawrak-lang":"ar"} overlay
 ✗ فشل: page.click: Timeout 30000ms exceeded.
 Call log:
   - waiting for locator('#mn')
