@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths-ignore: ["android/**", "*.md"]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -16,4 +18,16 @@ jobs:
         with: { distribution: temurin, java-version: "21" }
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright@1.47.2 && npx playwright install --with-deps chromium
-      - run: npm test
+      - name: الاختبار
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee e2e-log.txt
+      - name: حفظ النتيجة
+        if: always()
+        run: |
+          git config --global user.name "dawrak-ci"; git config --global user.email "ci@dawrak.app"
+          mkdir -p /tmp/res && cp e2e-log.txt /tmp/res/ 2>/dev/null || true
+          git fetch origin ci-results:refs/remotes/origin/ci-results || true
+          if git rev-parse -q --verify origin/ci-results >/dev/null; then git worktree add -B ci-results /tmp/ci origin/ci-results; else git worktree add --orphan -b ci-results /tmp/ci; fi
+          cp /tmp/res/e2e-log.txt /tmp/ci/ 2>/dev/null || true
+          cd /tmp/ci && git add -f e2e-log.txt && git commit -m "نتيجة الاختبار ${GITHUB_SHA::7}" && git push origin ci-results || true
