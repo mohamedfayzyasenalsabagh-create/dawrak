@@ -7,7 +7,7 @@ import {
 } from "./fb.js";
 import { t, lang, setLang } from "./i18n.js";
 import { APK_URL } from "./config.js";
-import { sendPush } from "./push.js";
+import { sendPush, VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -58,7 +58,7 @@ const fmtTime = (d) => (d ? toDate(d).toLocaleTimeString(lang === "ar" ? "ar-SY"
 const daysLeft = (d) => Math.ceil((toDate(d) - new Date()) / 864e5);
 const money = (n) => `${Number(n || 0).toLocaleString("en-US")}$`;
 const rand = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
-function waLink(phone) { let d = String(phone || "").replace(/\D/g, ""); if (d.startsWith("09")) d = "963" + d.slice(1); else if (d.startsWith("00")) d = d.slice(2); return d ? "https://wa.me/" + d : ""; }
+function waLink(phone, text) { let d = String(phone || "").replace(/\D/g, ""); if (d.startsWith("09")) d = "963" + d.slice(1); else if (d.startsWith("00")) d = d.slice(2); return d ? "https://wa.me/" + d + (text ? "?text=" + encodeURIComponent(text) : "") : ""; }
 
 // تصغير الصور قبل الحفظ (الصور تُحفظ داخل قاعدة البيانات)
 function compress(file, maxW = 1200, q = 0.72, type = "image/jpeg") {
@@ -87,6 +87,17 @@ function qrSvg(text) {
 }
 const customerUrl = (oid) => new URL(`o.html?r=${S.rid}&o=${oid}`, location.href).href;
 const rname = () => (S.R && ((lang === "en" && S.R.nameEn) || S.R.name)) || "";
+
+// الكتابة: إذا ما في نت منكمّل فوراً وبتتزامن لحالها لما يرجع
+function write(p) {
+  if (!navigator.onLine) { p.catch((e) => console.warn(e)); return Promise.resolve(); }
+  return Promise.race([p, new Promise((r) => setTimeout(r, 8000))]);
+}
+function netBar() {
+  const b = $("#netbar"); if (b) b.classList.toggle("hide", navigator.onLine);
+}
+window.addEventListener("offline", netBar);
+window.addEventListener("online", () => { netBar(); flushPush(); });
 
 // ---------- التوجيه ----------
 function go(h) { if (location.hash !== h) location.hash = h; else route(); }
@@ -198,7 +209,8 @@ function viewSignup() {
     <label class="field"><span>${t("رقم الجوال (واتساب)")}</span><input class="inp" id="ph" dir="ltr" inputmode="tel" placeholder="09xxxxxxxx"></label>
     ${signed ? "" : `<label class="field"><span>${t("البريد الإلكتروني")}</span><input class="inp" id="em" dir="ltr" inputmode="email" autocomplete="email"></label>
     <label class="field"><span>${t("كلمة السر")}</span><input class="inp" id="pw" type="password" dir="ltr" autocomplete="new-password"></label>`}
-    <button class="btn acc block" id="go">${t("ابدأ التجربة المجانية")}</button></div>
+    <button class="btn acc block" id="go">${t("ابدأ التجربة المجانية")}</button>
+    <p class="mute small" style="margin-top:10px;text-align:center">${t("بتسجيلك بتوافق على")} <a href="legal.html" target="_blank">${t("الشروط وسياسة الخصوصية")}</a></p></div>
     ${signed ? `<p class="switch"><a id="out">${t("تسجيل خروج")}</a></p>` : `<p class="switch">${t("عندك حساب؟")} <a href="#/">${t("دخول")}</a></p>`}`);
   $("#out") && ($("#out").onclick = () => signOut(auth));
   $("#go").onclick = () => busy($("#go"), async () => {
@@ -217,6 +229,7 @@ function viewSignup() {
       });
       b.set(doc(db, N.users, u.uid), { rid: rref.id, role: "owner", name, email: u.email, createdAt: serverTimestamp() });
       await b.commit();
+      await sendPush(S.plat.adminPush).catch(() => {});
       location.hash = "#/r/cashier"; location.reload();
     } catch (e) { console.warn(e); $("#er").innerHTML = `<div class="err">${errMsg(e)}</div>`; }
   });
@@ -246,9 +259,10 @@ function shell(tabs, cur, base, who) {
   app.innerHTML = `<div class="shell"><div class="bar"><a class="brand" href="./"><i>🔔</i>${t("دورك")}</a><span class="sp"></span>
     <span class="who">${esc(who)}</span><button data-lang>${lang === "ar" ? "EN" : "ع"}</button><button data-out>${t("خروج")}</button></div>
     ${tabs.length > 1 ? `<nav class="tabs">${tabs.map(([k, l]) => `<a href="${base}${k}" class="${k === cur ? "on" : ""}">${l}</a>`).join("")}</nav>` : ""}
-    <main><div id="bn"></div><div id="v"></div></main></div>`;
+    <main><div id="netbar" class="banner warn hide">📶 ${t("ما في نت. الطلبات عم تنحفظ على الجهاز وبتتزامن لما يرجع")}</div><div id="bn"></div><div id="v"></div></main></div>`;
   $("[data-out]").onclick = async () => { if (await confirmBox(t("بدك تطلع من الحساب؟"), t("خروج"))) { stopAll(); signOut(auth); location.hash = "#/"; } };
   $("[data-lang]").onclick = () => { setLang(lang === "ar" ? "en" : "ar"); route(); };
+  netBar();
   return $("#v");
 }
 function refreshBanner() {
@@ -298,7 +312,7 @@ function viewCashier(v) {
     const fresh = ready.filter((o) => now - rt(o) < 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const old = ready.filter((o) => now - rt(o) >= 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const row = (o, cls) => {
-      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.picked ? `✓ ${t("استلم")}` : "", o.rating ? "⭐".repeat(o.rating) : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
+      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.picked ? `✓ ${t("استلم")}` : "", o.rating ? "⭐".repeat(o.rating) : "", o.comment ? "💬" : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
       return `<div class="ord ${cls}" data-id="${o.id}"><div class="n" data-qr>${o.num}</div>
         <div class="m"><b>${o.status === "ready" ? t("جاهز") + " · " + fmtTime(o.readyAt) : t("بالتحضير") + " · " + fmtTime(o.createdAt)}</b><br>${flags}</div>
         <div class="acts">${o.status === "new" ? `<button class="btn ok" data-ready>✓ ${t("جاهز")}</button>`
@@ -313,39 +327,83 @@ function viewCashier(v) {
     const card = e.target.closest(".ord"); if (!card) return;
     const id = card.dataset.id, o = orders.find((x) => x.id === id), ref = doc(db, N.rest, S.rid, "orders", id);
     try {
-      if (e.target.closest("[data-ready]")) { await updateDoc(ref, { status: "ready", readyAt: serverTimestamp() }); pushTo(o); }
-      else if (e.target.closest("[data-call]")) { await updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() }); pushTo(o); toast(t("رنّينا للزبون مرة تانية 🔔")); }
-      else if (e.target.closest("[data-undo]")) await updateDoc(ref, { status: "new", readyAt: null });
+      if (e.target.closest("[data-ready]")) { await write(updateDoc(ref, { status: "ready", readyAt: serverTimestamp() })); pushTo(o); }
+      else if (e.target.closest("[data-call]")) { await write(updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() })); pushTo(o); toast(t("رنّينا للزبون مرة تانية 🔔")); }
+      else if (e.target.closest("[data-undo]")) await write(updateDoc(ref, { status: "new", readyAt: null }));
       else if (e.target.closest("[data-qr]")) showQr(o);
     } catch (er) { toast(errMsg(er)); }
   };
   $("#newo").onclick = () => busy($("#newo"), newOrder);
   S.unsub.push(onSnapshot(query(collection(db, N.rest, S.rid, "orders"), where("day", "==", dayKey())), (q) => {
-    orders = q.docs.map((d) => ({ id: d.id, ...d.data() })); draw();
+    orders = q.docs.map((d) => ({ id: d.id, ...d.data() })); S.orders = orders; draw();
   }, (e) => { $("#ol").innerHTML = `<div class="err">${errMsg(e)}</div>`; }));
   S.tick = setInterval(draw, 30e3);
+  cleanupOld();
 
   async function newOrder() {
     if (!isActive(S.R)) return toast(t("الاشتراك منتهي"));
     const today = dayKey(), rref = doc(db, N.rest, S.rid), oref = doc(collection(db, N.rest, S.rid, "orders"));
+    const base = { branch, day: today, status: "new", calls: 0, createdAt: serverTimestamp(), by: S.user.uid, byName: S.me.name || "" };
+    // بدون نت: الرقم من آخر طلب محفوظ على الجهاز، والطلب بيتزامن لما يرجع النت
+    const offline = () => {
+      const c = (S.R.counters || {})[branch] || {};
+      const n = 1 + Math.max(c.d === today ? c.n || 0 : 0, ...orders.filter((o) => (o.branch || "main") === branch).map((o) => o.num || 0));
+      setDoc(oref, { ...base, num: n }).catch((e) => console.warn(e));
+      updateDoc(rref, { [`counters.${branch}`]: { d: today, n } }).catch(() => {});
+      S.R.counters = { ...(S.R.counters || {}), [branch]: { d: today, n } };
+      return n;
+    };
     try {
-      const num = await runTransaction(db, async (tx) => {
-        const r = (await tx.get(rref)).data(); const c = (r.counters || {})[branch] || {};
-        const n = c.d === today ? (c.n || 0) + 1 : 1;
-        tx.update(rref, { [`counters.${branch}`]: { d: today, n } });
-        tx.set(oref, { num: n, branch, day: today, status: "new", calls: 0, createdAt: serverTimestamp(), by: S.user.uid, byName: S.me.name || "" });
-        return n;
-      });
+      let num;
+      if (!navigator.onLine) num = offline();
+      else {
+        try {
+          num = await Promise.race([
+            runTransaction(db, async (tx) => {
+              const rs = await tx.get(rref), ex = await tx.get(oref);
+              if (ex.exists()) return ex.data().num;
+              const c = (rs.data().counters || {})[branch] || {};
+              const n = c.d === today ? (c.n || 0) + 1 : 1;
+              tx.update(rref, { [`counters.${branch}`]: { d: today, n } });
+              tx.set(oref, { ...base, num: n });
+              return n;
+            }),
+            new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), 6000))
+          ]);
+        } catch (e) { if (e && e.code === "permission-denied") throw e; num = offline(); }
+      }
       showQr({ id: oref.id, num });
     } catch (e) { console.warn(e); toast(errMsg(e)); }
   }
 }
 // إشعار لجوال الزبون حتى لو الشاشة مقفلة (بيشتغل من تطبيق الكاشير)
 let pushWarned = false;
+const pendingPush = new Set();
+function flushPush() {
+  const ids = [...pendingPush]; pendingPush.clear();
+  for (const id of ids) { const o = (S.orders || []).find((x) => x.id === id); if (o && o.status === "ready" && !o.picked) pushTo(o); }
+}
 async function pushTo(o) {
   if (!o || !o.push) return;
+  if (!navigator.onLine) { pendingPush.add(o.id); return; }
   const ok = await sendPush(o.push);
   if (!ok && !IN_APP && !pushWarned) { pushWarned = true; toast(t("لتوصل الرنة للزبون وجواله مقفل، استخدم تطبيق الكاشير"), 5000); }
+}
+// حذف الطلبات الأقدم من 3 أشهر (مرة باليوم، من حساب صاحب المطعم)
+async function cleanupOld() {
+  if (!isOwner() || !navigator.onLine) return;
+  const k = "dawrak-clean-" + S.rid; let last = 0;
+  try { last = +localStorage.getItem(k) || 0; } catch {}
+  if (Date.now() - last < 864e5) return;
+  try { localStorage.setItem(k, String(Date.now())); } catch {}
+  try {
+    const cutoff = Timestamp.fromMillis(Date.now() - 90 * 864e5);
+    for (let i = 0; i < 5; i++) {
+      const q = await getDocs(query(collection(db, N.rest, S.rid, "orders"), where("createdAt", "<", cutoff), limit(300)));
+      if (q.empty) break;
+      const b = writeBatch(db); q.docs.forEach((d) => b.delete(d.ref)); await b.commit();
+    }
+  } catch (e) { console.warn("cleanup", e); }
 }
 function showQr(o) {
   const url = customerUrl(o.id);
@@ -375,6 +433,7 @@ async function viewStats(v) {
     $("#kp").innerHTML = `<div class="kpi"><b>${today.data().count}</b><span>${t("طلبات اليوم")}</span></div><div class="kpi"><b>${month.data().count}</b><span>${t("طلبات هالشهر")}</span></div>`;
   } catch (e) { $("#kp").innerHTML = `<div class="err">${errMsg(e)}</div>`; }
 
+  loadComments(v, col);
   if (!pro) {
     $("#pro").innerHTML = `<div class="card lock" style="min-height:260px"><div class="veil"><div style="font-size:34px">📊</div><b>${t("الإحصائيات المفصّلة بالباقة المفتوحة")}</b>
       <p class="mute small">${t("أوقات الذروة، مدة التحضير، مقارنة الأيام، التقييمات وأداء كل كاشير")}</p><a class="btn acc" href="#/r/plan">${t("رقّي باقتك")}</a></div>
@@ -436,6 +495,17 @@ async function viewStats(v) {
   draw();
 }
 
+async function loadComments(v, col) {
+  const box = document.createElement("div"); box.className = "card"; v.appendChild(box);
+  box.innerHTML = `<h2>💬 ${t("ملاحظات الزبائن")}</h2><div class="spin"></div>`;
+  try {
+    const q = await getDocs(query(col, where("comment", ">", ""), limit(60)));
+    const cs = q.docs.map((d) => d.data()).sort((a, b) => (toDate(b.createdAt) || 0) - (toDate(a.createdAt) || 0)).slice(0, 30);
+    box.innerHTML = `<h2>💬 ${t("ملاحظات الزبائن")}</h2><div class="list">${cs.map((o) => `<div style="border-bottom:1px solid var(--line);padding-bottom:8px">
+      <div class="small mute">${o.rating ? "⭐".repeat(o.rating) + " · " : ""}#${o.num} · ${fmtDate(o.createdAt)}</div><div>${esc(o.comment)}</div></div>`).join("") || `<p class="mute small">${t("لسا ما في ملاحظات")}</p>`}</div>`;
+  } catch (e) { box.innerHTML = `<h2>💬 ${t("ملاحظات الزبائن")}</h2><p class="mute small">${errMsg(e)}</p>`; }
+}
+
 // ---------- تخصيص صفحة الزبون ----------
 async function viewBrand(v) {
   const r = S.R, L = r.links || {};
@@ -485,7 +555,11 @@ async function viewBrand(v) {
     $("#ofs").innerHTML = ofs.map((o) => `<div class="item">${o.data ? `<img class="thumb" src="${o.data}">` : `<div class="thumb"></div>`}<div class="grow"><div class="t">${esc(o.title)}</div><div class="mute small">${esc(o.text || "")}</div></div><button class="btn sm bad" data-del="${o.id}">${t("حذف")}</button></div>`).join("") || `<p class="mute small">${t("ما في عروض")}</p>`;
     $("#mn").innerHTML = mn.map((m) => `<div class="im"><img src="${m.data}"><button data-del="${m.id}">✕</button></div>`).join("");
   };
-  const load = async () => { const q = await getDocs(query(mcol, orderBy("order"))); media = q.docs.map((d) => ({ id: d.id, ...d.data() })); drawMedia(); };
+  const load = async () => {
+    const q = await getDocs(query(mcol, orderBy("order"))); media = q.docs.map((d) => ({ id: d.id, ...d.data() })); drawMedia();
+    const has = media.some((m) => m.kind === "menu");
+    if (!!S.R.hasMenu !== has) updateDoc(doc(db, N.rest, S.rid), { hasMenu: has }).catch(() => {});
+  };
   load().catch((e) => toast(errMsg(e)));
   v.addEventListener("click", async (e) => {
     const id = e.target.closest("[data-del]")?.dataset.del; if (!id) return;
@@ -496,7 +570,7 @@ async function viewBrand(v) {
     const fs = await pickFile("image/*", true); if (!fs.length) return;
     if (media.filter((m) => m.kind === "menu").length + fs.length > 8) return toast(t("الحد الأقصى 8 صور للمنيو"));
     toast(t("عم نرفع الصور…"));
-    try { let i = 0; for (const f of fs) await setDoc(doc(mcol), { kind: "menu", data: await compress(f, 1400, 0.72), order: Date.now() + i++ }); await load(); toast(t("انحفظ ✓")); }
+    try { let i = 0; for (const f of fs) await setDoc(doc(mcol), { kind: "menu", data: await compress(f, 1100, 0.6), order: Date.now() + i++ }); await load(); toast(t("انحفظ ✓")); }
     catch (er) { toast(errMsg(er)); }
   };
   $("#addof").onclick = () => modal(`<h2 style="margin-bottom:12px">${t("عرض جديد")}</h2>
@@ -507,7 +581,7 @@ async function viewBrand(v) {
     (b, close) => {
       let img = "";
       $("[data-x]", b).onclick = close;
-      $("#oi", b).onclick = async () => { const [f] = await pickFile(); if (!f) return; img = await compress(f, 800, 0.72); $("#op", b).src = img; $("#op", b).style.display = "block"; };
+      $("#oi", b).onclick = async () => { const [f] = await pickFile(); if (!f) return; img = await compress(f, 700, 0.6); $("#op", b).src = img; $("#op", b).style.display = "block"; };
       $("#os", b).onclick = () => busy($("#os", b), async () => {
         const title = $("#ot", b).value.trim(); if (!title) return toast(t("اكتب عنوان العرض"));
         try { await setDoc(doc(mcol), { kind: "offer", title, text: $("#ox", b).value.trim(), data: img, order: Date.now() }); close(); await load(); }
@@ -626,7 +700,11 @@ async function viewPlan(v) {
   $("#send").onclick = () => busy($("#send"), async () => {
     try {
       await setDoc(doc(collection(db, N.pay)), { rid: S.rid, rname: r.name, phone: r.phone || "", plan, period, amount: P.plans[plan][period], img, status: "pending", createdAt: serverTimestamp(), by: S.user.uid });
-      img = ""; $("#rcp").style.display = "none"; toast(t("وصلنا الإيصال ✓ رح نفعّل اشتراكك بعد المراجعة")); loadHist();
+      img = ""; $("#rcp").style.display = "none"; loadHist();
+      sendPush(P.adminPush).catch(() => {});
+      const wa = waLink(P.whatsapp, t("مرحباً، رفعت إيصال اشتراك دورك لمطعم {r}: باقة {p} ({a}). رمز المطعم {c}", { r: r.name, p: planName(plan) + " · " + (period === "y" ? t("سنوي") : t("شهري")), a: money(P.plans[plan][period]), c: r.code }));
+      modal(`<div style="text-align:center"><div style="font-size:44px">✅</div><h2>${t("وصلنا الإيصال")}</h2><p class="mute" style="margin:8px 0 16px">${t("رح نفعّل اشتراكك بعد المراجعة")}</p>
+        ${wa ? `<a class="btn ok block" href="${wa}" target="_blank" style="margin-bottom:10px">💬 ${t("بلّغنا على واتساب لتفعيل أسرع")}</a>` : ""}<button class="btn ghost block" data-c>${t("تم")}</button></div>`, (b, c) => ($("[data-c]", b).onclick = c));
     } catch (e) { $("#er").innerHTML = `<div class="err">${errMsg(e)}</div>`; }
   });
   const ST = { pending: ["warn", "قيد المراجعة"], approved: ["ok", "مقبول"], rejected: ["bad", "مرفوض"] };
@@ -661,6 +739,11 @@ async function adminHome(v) {
     const ap = ps.filter((p) => p.status === "approved");
     const sum = (a, b) => ap.filter((p) => { const d = toDate(p.approvedAt || p.createdAt); return d >= a && (!b || d < b); }).reduce((s, p) => s + (p.amount || 0), 0);
     const soon = rs.filter((r) => isActive(r) && daysLeft(r.expiresAt) <= 3).sort((a, b) => toDate(a.expiresAt) - toDate(b.expiresAt));
+    const lapsed = rs.filter((r) => !isActive(r) && r.status !== "stopped" && daysLeft(r.expiresAt) >= -14).sort((a, b) => toDate(b.expiresAt) - toDate(a.expiresAt));
+    const remind = (r, ended) => waLink(r.phone, ended
+      ? t("مرحباً {r} 👋 خلص اشتراككم بدورك بتاريخ {d}. لتجددوه: افتحوا دورك ← الاشتراك ← ادفعوا عبر شام كاش وارفعوا الإيصال، ومنفعّله فوراً.", { r: r.name, d: fmtDate(r.expiresAt) })
+      : t("مرحباً {r} 👋 اشتراككم بدورك بيخلص بتاريخ {d}. لتجددوه بدون انقطاع: افتحوا دورك ← الاشتراك ← ادفعوا عبر شام كاش وارفعوا الإيصال.", { r: r.name, d: fmtDate(r.expiresAt) }));
+    const row = (r, ended) => `<div class="row" style="justify-content:space-between;flex-wrap:wrap"><span><b>${esc(r.name)}</b> · ${planName(r.plan)} · ${ended ? t("خلص") + " " + fmtDate(r.expiresAt) : t("بعد {n} يوم", { n: daysLeft(r.expiresAt) })}</span>${r.phone ? `<a class="btn sm ghost" style="flex:none" target="_blank" href="${remind(r, ended)}">💬 ${t("ذكّرهم")}</a>` : ""}</div>`;
     const pend = ps.filter((p) => p.status === "pending").length;
     const byPlan = { basic: 0, duo: 0, unlimited: 0 }; paid.forEach((r) => (byPlan[r.plan] = (byPlan[r.plan] || 0) + 1));
     const months = []; for (let i = 5; i >= 0; i--) { const a = new Date(now.getFullYear(), now.getMonth() - i, 1), b = new Date(now.getFullYear(), now.getMonth() - i + 1, 1); months.push([a, sum(a, b)]); }
@@ -672,7 +755,8 @@ async function adminHome(v) {
       <div class="card" style="margin-top:14px"><h2>${t("الأرباح آخر 6 أشهر")}</h2><div class="bars">${months.map(([, s]) => `<div style="height:${(s / mx) * 100}%"><span>${s ? money(s) : ""}</span></div>`).join("")}</div>
         <div class="axis">${months.map(([d]) => `<span>${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}</span>`).join("")}</div></div>
       <div class="card"><h2>${t("المشتركين حسب الباقة")}</h2><div class="grid">${Object.entries(byPlan).map(([k, n]) => `<div><b style="font-size:24px">${n}</b><div class="mute small">${planName(k)}</div></div>`).join("")}</div></div>
-      <div class="card"><h2>⏳ ${t("بيخلص اشتراكهم خلال 3 أيام")}</h2><div class="list">${soon.map((r) => `<div class="row" style="justify-content:space-between;flex-wrap:wrap"><span><b>${esc(r.name)}</b> · ${planName(r.plan)} · ${t("بعد {n} يوم", { n: daysLeft(r.expiresAt) })}</span>${r.phone ? `<a class="btn sm ghost" style="flex:none" target="_blank" href="${waLink(r.phone)}">💬 ${t("واتساب")}</a>` : ""}</div>`).join("") || `<p class="mute small">—</p>`}</div></div>`;
+      <div class="card"><h2>⏳ ${t("بيخلص اشتراكهم خلال 3 أيام")}</h2><div class="list">${soon.map((r) => row(r, false)).join("") || `<p class="mute small">—</p>`}</div></div>
+      <div class="card"><h2>⛔ ${t("خلص اشتراكهم آخر أسبوعين")}</h2><div class="list">${lapsed.map((r) => row(r, true)).join("") || `<p class="mute small">—</p>`}</div></div>`;
   } catch (e) { v.innerHTML = `<div class="err">${errMsg(e)}</div>`; }
 }
 
@@ -762,7 +846,21 @@ async function adminSettings(v) {
       <label class="field"><span>${t("حساب شام كاش (الرقم أو العنوان)")}</span><input class="inp" id="sa" dir="ltr" value="${esc(P.shamcash.account)}"></label>
       <label class="field"><span>${t("اسم صاحب الحساب")}</span><input class="inp" id="sn" value="${esc(P.shamcash.name)}"></label>
       <label class="field"><span>${t("رقم واتساب الدعم")}</span><input class="inp" id="wa" dir="ltr" value="${esc(P.whatsapp)}"></label>
-      <button class="btn acc" id="sv">${t("حفظ")}</button></div>`;
+      <button class="btn acc" id="sv">${t("حفظ")}</button></div>
+    <div class="card"><h2>🔔 ${t("إشعارات لجوالي")}</h2><p class="mute small" style="margin-bottom:12px">${t("بيوصلك إشعار لما يسجّل مطعم جديد أو يرفع إيصال دفع")}</p>
+      <p id="aps" class="small" style="margin-bottom:10px">${P.adminPush ? "✓ " + t("مفعّلة") : t("مو مفعّلة")}</p>
+      <button class="btn ghost" id="ape">${t("فعّل الإشعارات على هالجوال")}</button></div>`;
+  $("#ape").onclick = () => busy($("#ape"), async () => {
+    if (IN_APP || !("PushManager" in window)) return toast(t("افتح لوحتك من متصفح Chrome لتفعيل الإشعارات"), 5000);
+    try {
+      if ((await Notification.requestPermission()) !== "granted") return toast(t("لازم توافق على الإشعارات"));
+      const reg = await navigator.serviceWorker.register("sw.js?role=admin", { scope: "./__admin/" });
+      await new Promise((r) => { const w = reg.installing || reg.waiting; if (!w || reg.active) return r(); w.addEventListener("statechange", () => w.state === "activated" && r()); setTimeout(r, 5000); });
+      const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(VAPID_PUBLIC) }));
+      await updateDoc(doc(db, N.cfg, "platform"), { adminPush: sub.endpoint });
+      await loadPlatform(); $("#aps").textContent = "✓ " + t("مفعّلة"); toast(t("انحفظ ✓"));
+    } catch (e) { console.warn(e); toast(errMsg(e)); }
+  });
   let qr = P.shamcash.qr || "";
   const showQr = () => { const b = $("#qrp"); b.style.backgroundImage = qr ? `url('${qr}')` : ""; b.textContent = qr ? "" : "QR"; $("#qrd").classList.toggle("hide", !qr); };
   $("#qru").onclick = async () => { const [f] = await pickFile(); if (!f) return; qr = await compress(f, 700, 0.9, "image/png"); showQr(); };

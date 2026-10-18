@@ -45,7 +45,7 @@ service cloud.firestore {
         && request.resource.data.expiresAt <= request.time + duration.value(31, 'd')
         && isStr(request.resource.data.name, 80);
       allow update: if isAdmin()
-        || (isOwner(rid) && changed().hasOnly(['name', 'nameEn', 'logo', 'color', 'color2', 'links', 'branches', 'counters', 'phone']))
+        || (isOwner(rid) && changed().hasOnly(['name', 'nameEn', 'logo', 'color', 'color2', 'links', 'branches', 'counters', 'phone', 'hasMenu']))
         || (inRest(rid) && changed().hasOnly(['counters']));
       allow delete: if isAdmin();
 
@@ -62,7 +62,9 @@ service cloud.firestore {
         allow create: if inRest(rid) && (active(rid) || o == 'preview')
           && request.resource.data.status == 'new' && request.resource.data.by == uid();
         allow update: if inRest(rid)
-          || (changed().hasOnly(['opened', 'picked', 'rating', 'push'])
+          || (changed().hasOnly(['opened', 'picked', 'rating', 'push', 'comment'])
+              && (!('comment' in changed()) || (!('comment' in resource.data)
+                  && request.resource.data.comment is string && request.resource.data.comment.size() <= 300))
               && (!('push' in changed()) || (request.resource.data.push is string && request.resource.data.push.size() < 1000
                   && request.resource.data.push.matches('https://.*')))
               && (!('rating' in changed()) || (!('rating' in resource.data)

@@ -81,7 +81,8 @@ try {
   await C.waitForSelector(".ready.show"); ok("وصل التنبيه للزبون: طلبك جاهز");
   await C.click("#pk"); await C.waitForSelector(".stars");
   await C.click('.stars button[data-r="5"]'); await C.waitForSelector("text=شكراً على تقييمك");
-  await O.waitForSelector("text=⭐⭐⭐⭐⭐"); ok("الزبون استلم وقيّم 5 نجوم، والكاشير شاف التقييم");
+  await C.fill("#cm", "الخدمة سريعة"); await C.click("#cms"); await C.waitForSelector("text=وصلت ملاحظتك");
+  await O.waitForSelector("text=⭐⭐⭐⭐⭐"); ok("الزبون استلم وقيّم 5 نجوم وكتب ملاحظة، والكاشير شاف التقييم");
 
   // 6) نادي مرة تانية
   await O.click("[data-call]");
@@ -121,16 +122,28 @@ try {
   await K.click("#newo"); await K.waitForSelector(".qrbox .bign");
   if ((await K.textContent(".qrbox .bign")).trim() !== "2") throw new Error("ترقيم الكاشير غلط"); await K.click("[data-ok]");
   ok("الكاشير دخل وعمل طلب رقم 2، وما بيشوف لوحة صاحب المطعم");
+  await K.context().setOffline(true); await K.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await K.waitForSelector("#netbar:not(.hide)");
+  await K.click("#newo"); await K.waitForSelector(".qrbox .bign");
+  if ((await K.textContent(".qrbox .bign")).trim() !== "3") throw new Error("رقم الطلب بدون نت غلط"); await K.click("[data-ok]");
+  await K.waitForSelector('.ord .n:text-is("3")');
+  await K.click('.ord:has(.n:text-is("3")) [data-ready]');
+  await K.context().setOffline(false); await K.evaluate(() => window.dispatchEvent(new Event("online")));
+  await O.waitForSelector('.ord.ready .n:text-is("3")', { timeout: 20000 });
+  ok("الكاشير عمل طلب رقم 3 وكبس جاهز بدون نت، وتزامن لما رجع النت");
 
   // 9) تخصيص صفحة الزبون
   await O.goto(BASE + "app.html#/r/brand"); await O.waitForSelector("#n2");
   await O.fill("#n2", "Evening Cafe"); await O.click("#sv"); await O.waitForSelector("text=انحفظ");
   await O.click("#addof"); await O.fill("#ot", "قهوتين بسعر وحدة"); await O.click("#os");
   await O.waitForSelector("#ofs >> text=قهوتين بسعر وحدة");
+  await upload(O, "#addmn"); await O.waitForSelector("#mn .im"); await O.waitForTimeout(1500);
   await C.reload(); await C.waitForSelector("text=قهوتين بسعر وحدة"); ok("العرض ظهر بصفحة الزبون");
+  await C.waitForSelector("#mn"); await C.click("#mn"); await C.waitForSelector(".menu img"); ok("المنيو بيتحمّل بس لما الزبون يكبس");
 
   // 10) الإحصائيات
   await O.goto(BASE + "app.html#/r/stats"); await O.waitForSelector("text=متوسط مدة التحضير"); ok("الإحصائيات المفصّلة شغالة");
+  await O.waitForSelector("text=الخدمة سريعة"); ok("ملاحظة الزبون ظهرت بالإحصائيات");
 
   // 11) الدفع والتفعيل
   await O.goto(BASE + "app.html#/r/plan"); await O.waitForSelector("text=SHAM-12345"); await O.waitForSelector('img[alt="QR"]');

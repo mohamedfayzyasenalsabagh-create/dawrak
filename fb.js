@@ -5,7 +5,7 @@ import {
   onAuthStateChanged, sendPasswordResetEmail, connectAuthEmulator, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
   collection, query, where, getDocs, onSnapshot, serverTimestamp, runTransaction, writeBatch,
   orderBy, limit, Timestamp, increment, deleteField, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
@@ -17,7 +17,12 @@ const EMU = window.__DAWRAK_EMU; // للاختبار فقط
 
 export const app = configured ? initializeApp(cfg) : null;
 export const auth = configured ? getAuth(app) : null;
-export const db = configured ? getFirestore(app) : null;
+// نسخة محلية من البيانات على الجهاز: الكاشير بيكمّل شغله إذا قطع النت، وبتتزامن لما يرجع
+function makeDb() {
+  try { return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+  catch { return getFirestore(app); }
+}
+export const db = configured ? makeDb() : null;
 if (configured && EMU) {
   connectAuthEmulator(auth, `http://${EMU.host}:${EMU.auth}`, { disableWarnings: true });
   connectFirestoreEmulator(db, EMU.host, EMU.fs);
@@ -67,6 +72,7 @@ export function platformOf(d) {
   for (const k of Object.keys(out.plans)) Object.assign(out.plans[k], (p.plans || {})[k] || {});
   Object.assign(out.shamcash, p.shamcash || {});
   if (p.whatsapp) out.whatsapp = p.whatsapp;
+  out.adminPush = p.adminPush || "";
   out.ownerUid = p.ownerUid;
   return out;
 }

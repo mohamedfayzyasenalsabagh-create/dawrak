@@ -1,5 +1,5 @@
 // صفحة الزبون: رقم الطلب وحالته، والتنبيه لما يجهز
-import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, orderBy } from "./fb.js";
+import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, where } from "./fb.js";
 import { t, lang, useAuto } from "./i18n.js";
 import { VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
 
@@ -13,7 +13,7 @@ const mem = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch {} };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-let R = null, O = null, media = null, rendered = "";
+let R = null, O = null, media = null, menu = null, menuOpen = false, rendered = "";
 
 function fail(msg) { root.innerHTML = `<div class="center"><div style="font-size:48px">🍽️</div><p style="margin-top:12px">${esc(msg)}</p></div>`; }
 
@@ -43,7 +43,8 @@ async function start() {
   } catch (e) { return fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); }
 
   onSnapshot(doc(db, N.rest, RID, "orders", OID), (s) => {
-    if (!s.exists()) return fail(t("ما لقينا الطلب"));
+    // الطلب لسا ما وصل (نت الكاشير ضعيف): منستنى وما منوقف
+    if (!s.exists()) { if (!O) root.innerHTML = `<div class="center"><div class="spin"></div><p>${esc(t("عم نستنى اتصال المطعم…"))}</p></div>`; return; }
     const prev = O; O = s.data();
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
     if (!prev && mem.alerts) subscribePush();
@@ -61,11 +62,22 @@ function net() {
   const o = $("#off"); o.textContent = t("انقطع الإنترنت، رح نرجع نتصل تلقائياً"); o.style.display = navigator.onLine ? "none" : "block";
 }
 
+// العروض بتنحمّل مع الصفحة، والمنيو بس لما الزبون يطلبه (لتوفير الإنترنت)
+const byOrder = (a, b) => (a.order || 0) - (b.order || 0);
 async function loadMedia() {
   try {
-    const q = await getDocs(query(collection(db, N.rest, RID, "media"), orderBy("order")));
-    media = q.docs.map((d) => d.data());
+    const q = await getDocs(query(collection(db, N.rest, RID, "media"), where("kind", "==", "offer")));
+    media = q.docs.map((d) => d.data()).sort(byOrder);
   } catch { media = []; }
+  rendered = ""; render();
+}
+async function loadMenu() {
+  menuOpen = true; rendered = ""; render();
+  if (menu) return;
+  try {
+    const q = await getDocs(query(collection(db, N.rest, RID, "media"), where("kind", "==", "menu")));
+    menu = q.docs.map((d) => d.data()).sort(byOrder);
+  } catch { menu = []; }
   rendered = ""; render();
 }
 
@@ -151,6 +163,11 @@ async function rate(n) {
   mem.rated = n; save(); rendered = ""; render();
   try { await updateDoc(doc(db, N.rest, RID, "orders", OID), { rating: n }); } catch {}
 }
+async function sendComment() {
+  const v = ($("#cm")?.value || "").trim().slice(0, 300); if (!v) return;
+  mem.commented = true; save(); rendered = ""; render();
+  try { await updateDoc(doc(db, N.rest, RID, "orders", OID), { comment: v }); } catch {}
+}
 
 // ---------- العرض ----------
 const ICONS = {
@@ -177,11 +194,12 @@ function linksHtml() {
 }
 
 function mediaHtml() {
-  if (!media || !media.length) return "";
-  const offers = media.filter((m) => m.kind === "offer"), menu = media.filter((m) => m.kind === "menu");
+  const offers = media || [];
   let h = "";
+  if (R.hasMenu) h += menuOpen
+    ? `<div class="card menu"><h3>📋 ${t("المنيو")}</h3>${menu ? menu.map((m) => `<img src="${m.data}" alt="" loading="lazy">`).join("") || `<p class="lbl">—</p>` : `<div class="spin"></div>`}</div>`
+    : `<button class="alert ok" id="mn" style="margin-bottom:14px">📋 ${t("شوف المنيو")}</button>`;
   if (offers.length) h += `<div class="card"><h3>🔥 ${t("عروضنا")}</h3><div class="offers">${offers.map((o) => `<div class="offer">${o.data ? `<img src="${o.data}" alt="" loading="lazy">` : ""}<div><b>${esc((lang === "en" && o.titleEn) || o.title)}</b>${o.text || o.textEn ? `<p>${esc((lang === "en" && o.textEn) || o.text)}</p>` : ""}</div></div>`).join("")}</div></div>`;
-  if (menu.length) h += `<div class="card menu"><h3>📋 ${t("المنيو")}</h3>${menu.map((m) => `<img src="${m.data}" alt="" loading="lazy">`).join("")}</div>`;
   return h;
 }
 
@@ -189,7 +207,7 @@ function render() {
   if (!R || !O) return;
   const ready = O.status === "ready";
   const showThanks = ready && mem.picked;
-  const key = [O.status, O.num, mem.alerts, mem.picked, mem.rated, !!media, O.calls].join("|");
+  const key = [O.status, O.num, mem.alerts, mem.picked, mem.rated, mem.commented, !!media, menuOpen, !!menu, O.calls].join("|");
   if (key === rendered) return; rendered = key;
 
   const head = `<div class="top"><div class="logo" style="${R.logo ? `background-image:url('${R.logo}')` : ""}">${R.logo ? "" : esc(rname().slice(0, 1))}</div><div class="rname">${esc(rname())}</div></div>`;
@@ -199,6 +217,8 @@ function render() {
     main = `<div class="card thanks"><div class="e">😋</div><h2>${t("بالهنا والشفا!")}</h2><p class="lbl">${t("شكراً لزيارتك")} ${esc(rname())}</p>
       <p style="margin-top:18px;font-weight:700">${r ? t("شكراً على تقييمك ❤️") : t("كيف كانت تجربتك؟")}</p>
       <div class="stars">${[1, 2, 3, 4, 5].map((i) => `<button data-r="${i}" class="${i <= r ? "on" : ""}" ${r ? "disabled" : ""} aria-label="${i}">★</button>`).join("")}</div>
+      ${r && !mem.commented && !O.comment ? `<textarea id="cm" maxlength="300" placeholder="${esc(t("بدك تقلّنا شي؟ (اختياري)"))}" style="width:100%;margin-top:10px;padding:12px;border-radius:14px;border:1.5px solid var(--line);font:inherit;min-height:70px"></textarea><button class="alert" id="cms" style="margin-top:8px;padding:12px;font-size:15px">${t("إرسال")}</button>` : ""}
+      ${mem.commented ? `<p class="lbl" style="margin-top:8px">${t("وصلت ملاحظتك ✓")}</p>` : ""}
       ${linksHtml() ? `<p class="lbl" style="margin-top:14px">${t("تابعنا")}</p>${linksHtml()}` : ""}</div>`;
   } else {
     const stage = ready ? 3 : 2;
@@ -216,4 +236,6 @@ function render() {
   $("#en")?.addEventListener("click", enableAlerts);
   $("#pk")?.addEventListener("click", picked);
   root.querySelectorAll(".stars button").forEach((b) => b.addEventListener("click", () => rate(+b.dataset.r)));
+  $("#mn")?.addEventListener("click", loadMenu);
+  $("#cms")?.addEventListener("click", sendComment);
 }

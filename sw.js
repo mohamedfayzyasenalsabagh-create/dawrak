@@ -1,5 +1,6 @@
 // عامل الخدمة: يعرض إشعار "طلبك جاهز" ويفتح الصفحة عند الضغط عليه
-const V = "dawrak-v2";
+const V = "dawrak-v3";
+const ADMIN = new URL(location.href).searchParams.get("role") === "admin"; // نسخة إشعارات صاحب النظام
 const INFO = "dawrak-push"; // معلومات آخر طلب لعرض الإشعار
 const CORE = ["o.html", "o.js", "push.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
 
@@ -13,7 +14,13 @@ self.addEventListener("activate", (e) => {
 // الشبكة أولاً، والنسخة المحفوظة عند ضعف الإنترنت
 self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== location.origin) return;
+  if (e.request.method !== "GET") return;
+  // مكتبة Firebase: من الذاكرة أولاً، لتفتح لوحة الكاشير حتى بدون نت
+  if (u.hostname === "www.gstatic.com" && u.pathname.startsWith("/firebasejs/")) {
+    e.respondWith(caches.match(e.request).then((m) => m || fetch(e.request).then((r) => { const c = r.clone(); caches.open(V).then((ca) => ca.put(e.request, c)); return r; })));
+    return;
+  }
+  if (u.origin !== location.origin) return;
   e.respondWith(
     fetch(e.request).then((r) => { const c = r.clone(); caches.open(V).then((ca) => ca.put(e.request, c)).catch(() => {}); return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: u.pathname.endsWith("o.html") }))
@@ -35,6 +42,13 @@ self.addEventListener("message", (e) => {
 });
 // إشعار من الكاشير: "طلبك جاهز" حتى لو الجوال مقفل أو المتصفح مسكّر
 self.addEventListener("push", (e) => {
+  if (ADMIN) {
+    e.waitUntil(self.registration.showNotification("🔔 دورك · نشاط جديد", {
+      body: "مطعم جديد سجّل أو في إيصال دفع بانتظار مراجعتك", icon: "../icon-192.png", badge: "../icon-192.png",
+      tag: "dawrak-admin", renotify: true, data: { url: new URL("../app.html#/admin", location.href).href }
+    }));
+    return;
+  }
   e.waitUntil((async () => {
     let o = null;
     try { const r = await (await caches.open(INFO)).match("/__order"); if (r) o = await r.json(); } catch {}
