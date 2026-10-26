@@ -36,7 +36,7 @@ if (configured && EMU) {
 
 // أسماء المجموعات
 const PX = window.__DAWRAK_PFX ?? PREFIX;
-export const N = { rest: PX + "restaurants", users: PX + "users", pay: PX + "payments", cfg: PX + "config", err: PX + "errors" };
+export const N = { rest: PX + "restaurants", users: PX + "users", pay: PX + "payments", cfg: PX + "config" };
 
 // تطبيق ثانٍ لإنشاء حسابات الكاشيرية دون تسجيل خروج صاحب المطعم
 let sec = null;

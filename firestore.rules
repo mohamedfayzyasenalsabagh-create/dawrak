@@ -75,16 +75,6 @@ service cloud.firestore {
       }
     }
 
-    // سجل الأعطال: أي حدا بيقدر يسجّل عطل بحجم محدود، وبس صاحب النظام بيقرأ ويمسح
-    match /errors/{e} {
-      allow create: if request.resource.data.keys().hasOnly(['msg', 'where', 'stack', 'page', 'hash', 'ua', 'app', 'rid', 'role', 'online', 'at'])
-        && isStr(request.resource.data.msg, 500) && isStr(request.resource.data.stack, 1500) && isStr(request.resource.data.ua, 200)
-        && isStr(request.resource.data.where, 80) && isStr(request.resource.data.page, 40) && isStr(request.resource.data.hash, 60)
-        && isStr(request.resource.data.rid, 40) && isStr(request.resource.data.role, 20)
-        && request.resource.data.at == request.time;
-      allow read, delete: if isAdmin();
-    }
-
     // دفعات الاشتراك عبر شام كاش
     match /payments/{p} {
       allow get: if isAdmin() || inRest(resource.data.rid);

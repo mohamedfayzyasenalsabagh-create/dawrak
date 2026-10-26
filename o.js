@@ -2,7 +2,6 @@
 import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, where } from "./fb.js";
 import { t, lang, useAuto } from "./i18n.js";
 import { VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
-import { logError, errCtx } from "./errlog.js";
 
 useAuto(); // صفحة الزبون دائماً حسب لغة جواله
 const $ = (s) => document.querySelector(s);
@@ -10,7 +9,6 @@ const root = $("#root");
 const P = new URLSearchParams(location.search);
 const RID = P.get("r"), OID = P.get("o");
 const KEY = `dawrak-o-${RID}-${OID}`;
-errCtx.rid = RID || ""; errCtx.role = "customer";
 const mem = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch {} };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -50,7 +48,7 @@ async function start() {
     // أيقونة واسم الشاشة الرئيسية على الآيفون = لوغو واسم المطعم
     if (R.logo) document.getElementById("ati")?.setAttribute("href", R.logo);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", rname().slice(0, 20));
-  } catch (e) { logError(e, "o:start"); return fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); }
+  } catch (e) { return fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); }
 
   onSnapshot(doc(db, N.rest, RID, "orders", OID), (s) => {
     // الطلب لسا ما وصل (نت الكاشير ضعيف): منستنى وما منوقف
@@ -60,7 +58,7 @@ async function start() {
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
     if (!prev && mem.alerts) subscribePush();
     react(prev); render();
-  }, (e) => { logError(e, "o:order"); fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); });
+  }, () => fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")));
 
   loadMedia();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -112,7 +110,7 @@ async function subscribePush() {
     // معلومات الإشعار لعامل الخدمة
     reg.active && reg.active.postMessage({ type: "order", url: location.href, title: "🔔 " + rname() + " · " + t("طلبك جاهز!"), body: t("طلب رقم {n} جاهز، تفضل استلمه", { n: O.num }), icon: R.logo || "icon-192.png", tag: KEY });
     if (O.push !== sub.endpoint) await updateDoc(doc(db, N.rest, RID, "orders", OID), { push: sub.endpoint });
-  } catch (e) { console.warn("push", e); logError(e, "o:push"); }
+  } catch (e) { console.warn("push", e); }
 }
 // لما يرجع الزبون للصفحة والطلب جاهز: نرجع نرن
 async function backToPage() {

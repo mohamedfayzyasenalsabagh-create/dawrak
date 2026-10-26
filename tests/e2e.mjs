@@ -166,16 +166,6 @@ try {
   await A.goto(BASE + "app.html#/admin"); await A.waitForSelector("text=15$"); ok("الأرباح ظهرت بلوحة صاحب النظام");
   await A.goto(BASE + "app.html#/admin/rest"); await A.waitForSelector("text=كافيه المسا"); ok("قائمة المطاعم شغالة");
 
-  // 12.5) سجل الأعطال
-  await O.evaluate(() => setTimeout(() => { throw new Error("test-crash-123"); }));
-  await O.waitForTimeout(2500);
-  await A.goto(BASE + "app.html#/admin/errors"); await A.waitForSelector("text=test-crash-123"); ok("العطل انسجّل وظهر بلوحة صاحب النظام");
-  const spam = await C.evaluate(async () => { const fb = await import("./fb.js");
-    try { await fb.addDoc(fb.collection(fb.db, fb.N.err), { msg: "x".repeat(900), where: "", stack: "", page: "", hash: "", ua: "", app: false, rid: "", role: "", online: true, at: fb.serverTimestamp() }); return "bad"; } catch { return "ok"; } });
-  if (spam !== "ok") throw new Error("سجل الأعطال بيقبل رسائل طويلة"); ok("سجل الأعطال محمي من الرسائل الكبيرة");
-  const cantRead = await C.evaluate(async () => { const fb = await import("./fb.js"); try { await fb.getDocs(fb.collection(fb.db, fb.N.err)); return "bad"; } catch { return "ok"; } });
-  if (cantRead !== "ok") throw new Error("الزبون بيقرأ الأعطال"); ok("بس صاحب النظام بيقرأ الأعطال");
-
   // 12.6) الآيفون
   const I = await browser.newContext({ locale: "ar-SY", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1", viewport: { width: 390, height: 844 } });
   await I.addInitScript(INIT); const IP = await I.newPage();

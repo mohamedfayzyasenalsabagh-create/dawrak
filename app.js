@@ -7,7 +7,6 @@ import {
 } from "./fb.js";
 import { t, lang, setLang } from "./i18n.js";
 import { APK_URL } from "./config.js";
-import { logError, errCtx } from "./errlog.js";
 import { sendPush, VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -39,7 +38,6 @@ function confirmBox(msg, yes = t("تأكيد")) {
     (b, close) => { $("[data-n]", b).onclick = () => { close(); res(false); }; $("[data-y]", b).onclick = () => { close(); res(true); }; }));
 }
 function errMsg(e) {
-  logError(e, "ui");
   const c = (e && e.code) || "";
   const map = {
     "auth/invalid-credential": "البريد أو كلمة السر غلط", "auth/wrong-password": "البريد أو كلمة السر غلط", "auth/user-not-found": "البريد أو كلمة السر غلط",
@@ -136,11 +134,11 @@ if (configured) onAuthStateChanged(auth, async (u) => {
   meUnsub && meUnsub(); rUnsub && rUnsub(); meUnsub = rUnsub = null;
   await loadPlatform();
   if (u) {
-    S.isAdmin = S.plat.ownerUid === u.uid; if (S.isAdmin) errCtx.role = "admin";
+    S.isAdmin = S.plat.ownerUid === u.uid;
     try {
       const s = await getDoc(doc(db, N.users, u.uid));
       if (s.exists()) {
-        S.me = s.data(); S.rid = S.me.rid; errCtx.rid = S.rid; errCtx.role = S.me.role;
+        S.me = s.data(); S.rid = S.me.rid;
         await new Promise((res) => {
           rUnsub = onSnapshot(doc(db, N.rest, S.rid), (rs) => {
             const first = !S.R; S.R = rs.exists() ? rs.data() : null;
@@ -728,43 +726,16 @@ async function viewPlan(v) {
 
 // ---------- لوحة صاحب النظام ----------
 function adminShell(tab) {
-  const tabs = [["home", "📈 " + t("نظرة عامة")], ["pay", "💳 " + t("الدفعات")], ["rest", "🏪 " + t("المطاعم")], ["errors", "⚠️ " + t("الأعطال")], ["settings", "⚙️ " + t("الإعدادات")]];
+  const tabs = [["home", "📈 " + t("نظرة عامة")], ["pay", "💳 " + t("الدفعات")], ["rest", "🏪 " + t("المطاعم")], ["settings", "⚙️ " + t("الإعدادات")]];
   if (!tabs.find((x) => x[0] === tab)) tab = "home";
   const v = shell(tabs, tab, "#/admin/", t("صاحب النظام"));
-  ({ home: adminHome, pay: adminPay, rest: adminRest, errors: adminErrors, settings: adminSettings }[tab])(v);
+  ({ home: adminHome, pay: adminPay, rest: adminRest, settings: adminSettings }[tab])(v);
 }
 async function allRest() { const q = await getDocs(collection(db, N.rest)); return q.docs.map((d) => ({ id: d.id, ...d.data() })); }
 async function allPay() { const q = await getDocs(collection(db, N.pay)); return q.docs.map((d) => ({ id: d.id, ...d.data() })); }
 
-async function adminErrors(v) {
-  v.innerHTML = `<div class="spin"></div>`;
-  let docs = [];
-  const load = async () => {
-    const [q, rs] = await Promise.all([getDocs(query(collection(db, N.err), orderBy("at", "desc"), limit(400))), allRest()]);
-    docs = q.docs; const names = Object.fromEntries(rs.map((r) => [r.id, r.name]));
-    // نجمع الأخطاء المتشابهة
-    const g = new Map();
-    for (const d of docs) { const e = d.data(); const k = e.msg; if (!g.has(k)) g.set(k, { e, n: 0, rids: new Set(), last: e.at }); const x = g.get(k); x.n++; if (e.rid) x.rids.add(names[e.rid] || e.rid); }
-    const where = (e) => [e.page, e.role && t({ owner: "صاحب مطعم", cashier: "كاشير", customer: "زبون", admin: "صاحب النظام" }[e.role] || e.role), e.app ? t("التطبيق") : t("المتصفح"), e.online === false ? t("بدون نت") : ""].filter(Boolean).join(" · ");
-    v.innerHTML = `<div class="row" style="margin-bottom:12px;justify-content:space-between"><p class="mute small">${t("آخر {n} عطل، الأخطاء المتشابهة مجمّعة", { n: docs.length })}</p>
-      ${docs.length ? `<button class="btn sm bad" id="clr" style="flex:none">${t("مسح الكل")}</button>` : ""}</div>
-      <div class="list">${[...g.values()].map(({ e, n, rids, last }) => `<div class="item" style="display:block"><div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div class="t" dir="ltr" style="text-align:start;word-break:break-word">${esc(e.msg)}</div><span class="pill ${n > 3 ? "bad" : "warn"}" style="flex:none">×${n}</span></div>
-        <div class="mute small" style="margin-top:4px">${fmtDate(last)} ${fmtTime(last)} · ${esc(where(e))}${rids.size ? " · 🏪 " + esc([...rids].slice(0, 4).join("، ")) : ""}</div>
-        ${e.stack ? `<details style="margin-top:6px"><summary class="small mute" style="cursor:pointer">${t("التفاصيل")}</summary><pre dir="ltr" style="white-space:pre-wrap;font-size:11px;background:var(--bg);padding:8px;border-radius:10px;margin-top:6px;overflow:auto">${esc(e.stack)}\n\n${esc(e.ua)}</pre></details>` : ""}</div>`).join("")
-        || `<div class="empty">✅ ${t("ما في أعطال")}</div>`}</div>`;
-    $("#clr") && ($("#clr").onclick = async () => {
-      if (!(await confirmBox(t("بدك تمسح كل الأعطال المسجّلة؟"), t("مسح")))) return;
-      try { for (let i = 0; i < docs.length; i += 400) { const b = writeBatch(db); docs.slice(i, i + 400).forEach((d) => b.delete(d.ref)); await b.commit(); } await load(); } catch (er) { toast(errMsg(er)); }
-    });
-  };
-  try { await load(); } catch (e) { v.innerHTML = `<div class="err">${errMsg(e)}</div>`; }
-}
-
 async function adminHome(v) {
   v.innerHTML = `<div class="spin"></div>`;
-  let errN = 0;
-  try { errN = (await getCountFromServer(query(collection(db, N.err), where("at", ">=", Timestamp.fromMillis(Date.now() - 864e5))))).data().count; } catch {}
   try {
     const [rs, ps] = await Promise.all([allRest(), allPay()]);
     const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1), m1 = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -781,7 +752,7 @@ async function adminHome(v) {
     const byPlan = { basic: 0, duo: 0, unlimited: 0 }; paid.forEach((r) => (byPlan[r.plan] = (byPlan[r.plan] || 0) + 1));
     const months = []; for (let i = 5; i >= 0; i--) { const a = new Date(now.getFullYear(), now.getMonth() - i, 1), b = new Date(now.getFullYear(), now.getMonth() - i + 1, 1); months.push([a, sum(a, b)]); }
     const mx = Math.max(1, ...months.map((x) => x[1]));
-    v.innerHTML = `${errN ? `<div class="banner bad">⚠️ ${t("صار {n} عطل آخر 24 ساعة", { n: errN })}<a class="btn sm" href="#/admin/errors">${t("شوف")}</a></div>` : ""}${pend ? `<div class="banner warn">💳 ${t("عندك {n} دفعة بانتظار المراجعة", { n: pend })}<a class="btn sm acc" href="#/admin/pay">${t("راجع")}</a></div>` : ""}
+    v.innerHTML = `${pend ? `<div class="banner warn">💳 ${t("عندك {n} دفعة بانتظار المراجعة", { n: pend })}<a class="btn sm acc" href="#/admin/pay">${t("راجع")}</a></div>` : ""}
       <div class="grid"><div class="kpi"><b>${money(sum(m0))}</b><span>${t("أرباح هالشهر")}</span></div><div class="kpi"><b>${money(sum(m1, m0))}</b><span>${t("الشهر الماضي")}</span></div>
         <div class="kpi"><b>${rs.length}</b><span>${t("كل المطاعم")}</span></div><div class="kpi"><b>${paid.length}</b><span>${t("مشتركين")}</span></div>
         <div class="kpi"><b>${trial.length}</b><span>${t("بالتجربة")}</span></div><div class="kpi"><b>${dead.length}</b><span>${t("منتهي أو موقوف")}</span></div></div>
