@@ -105,7 +105,7 @@ window.addEventListener("online", () => { netBar(); flushPush(); });
 function go(h) { if (location.hash !== h) location.hash = h; else route(); }
 window.addEventListener("hashchange", () => route());
 
-function stopAll() { S.unsub.forEach((u) => { try { u(); } catch {} }); S.unsub = []; clearInterval(S.tick); }
+function stopAll() { S.unsub.forEach((u) => { try { u(); } catch {} }); S.unsub = []; clearInterval(S.tick); $$(".modal").forEach((m) => m.remove()); }
 
 async function route() {
   stopAll();
