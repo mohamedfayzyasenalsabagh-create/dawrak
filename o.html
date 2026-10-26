@@ -6,7 +6,16 @@
 <meta name="theme-color" content="#17201B">
 <title>دورك</title>
 <link rel="icon" href="icon-192.png">
-<link rel="manifest" href="manifest-o.json">
+<link rel="manifest" href="manifest-o.json" id="mf">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="طلبي">
+<link rel="apple-touch-icon" href="icon-192.png" id="ati">
+<script>
+// على الآيفون: أيقونة الشاشة الرئيسية لازم تفتح نفس الطلب، فمنشيل ملف التطبيق العام
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) document.getElementById("mf").remove();
+</script>
 <style>
 :root{--c1:#17201B;--c2:#FF7A1A;--on1:#fff;--bg:#FAF7F2;--card:#fff;--ink:#17201B;--mute:#6B6F6A;--line:#ECE7DF}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -58,6 +67,12 @@ h3{font-size:16px;margin-bottom:12px}
 @keyframes r{to{transform:rotate(1turn)}}
 .foot{text-align:center;font-size:12px;color:var(--mute);margin-top:18px}
 .foot a{color:inherit}
+.ios{background:#EEF4FF;border:1.5px solid #C9DAFF;color:#17306B;border-radius:18px;padding:16px;margin-top:16px;font-size:15px;line-height:1.7}
+.ios b{display:block;font-size:16px;margin-bottom:6px}
+.ios ol{padding-inline-start:20px}
+.ios li{margin:4px 0}
+.ios .sh{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;background:#fff;border:1px solid #C9DAFF;vertical-align:middle;margin:0 2px}
+.ios .sh svg{width:15px;height:15px}
 .off{background:#B42318;color:#fff;text-align:center;font-size:13px;padding:6px;position:sticky;top:0;z-index:5;display:none}
 </style>
 </head>

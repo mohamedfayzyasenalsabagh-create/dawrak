@@ -2,6 +2,7 @@
 import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, where } from "./fb.js";
 import { t, lang, useAuto } from "./i18n.js";
 import { VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
+import { logError, errCtx } from "./errlog.js";
 
 useAuto(); // صفحة الزبون دائماً حسب لغة جواله
 const $ = (s) => document.querySelector(s);
@@ -9,10 +10,16 @@ const root = $("#root");
 const P = new URLSearchParams(location.search);
 const RID = P.get("r"), OID = P.get("o");
 const KEY = `dawrak-o-${RID}-${OID}`;
+errCtx.rid = RID || ""; errCtx.role = "customer";
 const mem = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch {} };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// الآيفون: الإشعار والجوال مقفل بيشتغل بس إذا الصفحة مضافة للشاشة الرئيسية
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const STANDALONE = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+const IOS_NEEDS_HOME = IOS && !STANDALONE;
+const SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="#1D6CF0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
 let R = null, O = null, media = null, menu = null, menuOpen = false, rendered = "";
 
 function fail(msg) { root.innerHTML = `<div class="center"><div style="font-size:48px">🍽️</div><p style="margin-top:12px">${esc(msg)}</p></div>`; }
@@ -40,7 +47,10 @@ async function start() {
     const rs = await getDoc(doc(db, N.rest, RID));
     if (!rs.exists()) return fail(t("ما لقينا المطعم"));
     R = rs.data(); theme(); document.title = rname();
-  } catch (e) { return fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); }
+    // أيقونة واسم الشاشة الرئيسية على الآيفون = لوغو واسم المطعم
+    if (R.logo) document.getElementById("ati")?.setAttribute("href", R.logo);
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", rname().slice(0, 20));
+  } catch (e) { logError(e, "o:start"); return fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); }
 
   onSnapshot(doc(db, N.rest, RID, "orders", OID), (s) => {
     // الطلب لسا ما وصل (نت الكاشير ضعيف): منستنى وما منوقف
@@ -50,7 +60,7 @@ async function start() {
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
     if (!prev && mem.alerts) subscribePush();
     react(prev); render();
-  }, () => fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")));
+  }, (e) => { logError(e, "o:order"); fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")); });
 
   loadMedia();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -102,7 +112,7 @@ async function subscribePush() {
     // معلومات الإشعار لعامل الخدمة
     reg.active && reg.active.postMessage({ type: "order", url: location.href, title: "🔔 " + rname() + " · " + t("طلبك جاهز!"), body: t("طلب رقم {n} جاهز، تفضل استلمه", { n: O.num }), icon: R.logo || "icon-192.png", tag: KEY });
     if (O.push !== sub.endpoint) await updateDoc(doc(db, N.rest, RID, "orders", OID), { push: sub.endpoint });
-  } catch (e) { console.warn("push", e); }
+  } catch (e) { console.warn("push", e); logError(e, "o:push"); }
 }
 // لما يرجع الزبون للصفحة والطلب جاهز: نرجع نرن
 async function backToPage() {
@@ -233,7 +243,10 @@ function render() {
         <div class="st on ${stage === 2 ? "now" : ""}"><span class="dot">${stage > 2 ? "✓" : ""}</span>${t("بالتحضير")}</div>
         <div class="st ${stage === 3 ? "on now" : ""}"><span class="dot">${stage === 3 ? "✓" : ""}</span>${t("جاهز")}</div></div>
       ${mem.alerts ? `<div class="alert ok">✓ ${t("التنبيه مفعّل، رح يرن جوالك لما يجهز طلبك")}</div><p class="hint">${t("خلّي هالصفحة مفتوحة لتوصلك الرنة")}</p>`
-        : `<button class="alert" id="en">🔔 ${t("فعّل التنبيه")}</button><p class="hint">${t("اكبس لنرن على جوالك لما يجهز طلبك")}</p>`}</div>`;
+        : `<button class="alert" id="en">🔔 ${t("فعّل التنبيه")}</button><p class="hint">${t("اكبس لنرن على جوالك لما يجهز طلبك")}</p>`}
+      ${IOS_NEEDS_HOME ? `<div class="ios"><b>📲 ${t("عندك آيفون؟")}</b>${t("لتوصلك الرنة حتى لو قفلت الجوال:")}
+        <ol><li>${t("اكبس زر المشاركة")} <span class="sh">${SHARE_ICON}</span> ${t("تحت أو فوق بالمتصفح")}</li>
+        <li>${t("اختار «إضافة إلى الشاشة الرئيسية»")}</li><li>${t("افتح الطلب من الأيقونة الجديدة واكبس «فعّل التنبيه»")}</li></ol></div>` : ""}</div>`;
   }
   const overlay = ready && !mem.picked ? `<div class="ready show"><h1>🎉 ${t("طلبك جاهز!")}</h1><div class="big">${esc(O.num)}</div><p>${t("تفضل استلمه من الكاشير")}</p><button id="pk">${t("استلمت طلبي ✓")}</button></div>` : "";
   root.innerHTML = head + `<div class="wrap">${main}${mediaHtml()}<p class="foot">${t("بواسطة")} <a href="./" target="_blank">${t("دورك")}</a></p></div>` + overlay;

@@ -26,7 +26,7 @@ async function ctx(name) {
   const c = await browser.newContext({ locale: "ar-SY", permissions: ["notifications"] });
   await c.addInitScript(INIT);
   const p = await c.newPage();
-  p.on("pageerror", (e) => errors.push(`[${name}] ${e.message}`));
+  p.on("pageerror", (e) => { if (!/test-crash/.test(e.message)) errors.push(`[${name}] ${e.message}`); });
   p.on("console", (m) => { if (m.type() === "error" && !/favicon|ERR_|404/.test(m.text())) errors.push(`[${name}] ${m.text()}`); });
   p.on("dialog", (d) => d.accept(d.defaultValue()));
   return p;
@@ -165,6 +165,27 @@ try {
   // 12) لوحة صاحب النظام
   await A.goto(BASE + "app.html#/admin"); await A.waitForSelector("text=15$"); ok("الأرباح ظهرت بلوحة صاحب النظام");
   await A.goto(BASE + "app.html#/admin/rest"); await A.waitForSelector("text=كافيه المسا"); ok("قائمة المطاعم شغالة");
+
+  // 12.5) سجل الأعطال
+  await O.evaluate(() => setTimeout(() => { throw new Error("test-crash-123"); }));
+  await O.waitForTimeout(2500);
+  await A.goto(BASE + "app.html#/admin/errors"); await A.waitForSelector("text=test-crash-123"); ok("العطل انسجّل وظهر بلوحة صاحب النظام");
+  const spam = await C.evaluate(async () => { const fb = await import("./fb.js");
+    try { await fb.addDoc(fb.collection(fb.db, fb.N.err), { msg: "x".repeat(900), where: "", stack: "", page: "", hash: "", ua: "", app: false, rid: "", role: "", online: true, at: fb.serverTimestamp() }); return "bad"; } catch { return "ok"; } });
+  if (spam !== "ok") throw new Error("سجل الأعطال بيقبل رسائل طويلة"); ok("سجل الأعطال محمي من الرسائل الكبيرة");
+  const cantRead = await C.evaluate(async () => { const fb = await import("./fb.js"); try { await fb.getDocs(fb.collection(fb.db, fb.N.err)); return "bad"; } catch { return "ok"; } });
+  if (cantRead !== "ok") throw new Error("الزبون بيقرأ الأعطال"); ok("بس صاحب النظام بيقرأ الأعطال");
+
+  // 12.6) الآيفون
+  const I = await browser.newContext({ locale: "ar-SY", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1", viewport: { width: 390, height: 844 } });
+  await I.addInitScript(INIT); const IP = await I.newPage();
+  await O.goto(BASE + "app.html#/r/cashier"); await O.waitForSelector("#newo"); await O.click("#newo"); await O.waitForSelector(".qrbox .bign");
+  const urlI = await O.getAttribute(".qr", "data-url"); await O.click("[data-ok]");
+  await IP.goto(urlI.replace(/^https?:\/\/[^/]+\//, BASE)); await IP.waitForSelector(".ios"); await IP.waitForSelector("text=إضافة إلى الشاشة الرئيسية");
+  if (await IP.$('link[rel="manifest"]')) throw new Error("ملف التطبيق لسا موجود على الآيفون");
+  const CA = await ctx("android"); await CA.goto(urlI.replace(/^https?:\/\/[^/]+\//, BASE)); await CA.waitForSelector("#en");
+  if (await CA.$(".ios")) throw new Error("شرح الآيفون طالع على أندرويد");
+  ok("شرح «إضافة للشاشة الرئيسية» بيطلع بس على الآيفون");
 
   // 13) الصفحة الرئيسية والإنكليزي
   const L = await ctx("landing");

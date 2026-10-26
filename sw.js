@@ -1,8 +1,8 @@
 // عامل الخدمة: يعرض إشعار "طلبك جاهز" ويفتح الصفحة عند الضغط عليه
-const V = "dawrak-v3";
+const V = "dawrak-v4";
 const ADMIN = new URL(location.href).searchParams.get("role") === "admin"; // نسخة إشعارات صاحب النظام
 const INFO = "dawrak-push"; // معلومات آخر طلب لعرض الإشعار
-const CORE = ["o.html", "o.js", "push.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
+const CORE = ["o.html", "o.js", "push.js", "errlog.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
