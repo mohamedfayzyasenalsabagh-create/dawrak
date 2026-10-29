@@ -13,7 +13,7 @@ export const firebaseConfig = {
 export const SITE = "https://mohamedfayzyasenalsabagh-create.github.io/dawrak/";
 
 // رابط تحميل تطبيق أندرويد
-export const APK_URL = "https://github.com/mohamedfayzyasenalsabagh-create/dawrak/releases/latest/download/dawrak.apk";
+export const APK_URL = "https://mohamedfayzyasenalsabagh-create.github.io/dawrak/dawrak.apk";
 
 // بادئة أسماء المجموعات (تُستخدم إذا شارك دورك مشروع Firebase مع نظام آخر)
 export const PREFIX = "";

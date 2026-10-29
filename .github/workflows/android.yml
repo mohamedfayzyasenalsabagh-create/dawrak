@@ -22,6 +22,12 @@ jobs:
         run: |
           gradle -p android assembleRelease --no-daemon
           cp android/app/build/outputs/apk/release/app-release.apk dawrak.apk
+      # نسخة على موقع دورك نفسه (أسهل للتنزيل من سوريا)
+      - name: نشر التطبيق على الموقع
+        run: |
+          git config --global user.name "dawrak-ci"; git config --global user.email "ci@dawrak.app"
+          git pull -q origin main
+          git add -f dawrak.apk && git commit -m "تحديث ملف التطبيق على الموقع" && git push origin main || true
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: app-v${{ github.run_number }}
