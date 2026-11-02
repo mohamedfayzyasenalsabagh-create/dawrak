@@ -18,7 +18,7 @@ const INIT = `window.__DAWRAK_CFG={apiKey:"demo-key",authDomain:"demo-dawrak.fir
 window.__DAWRAK_EMU={host:"127.0.0.1",auth:9099,fs:8080};
 try{localStorage.setItem("dawrak-lang","ar")}catch{}`;
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 const errors = [];
 let step = 0;
 const ok = (m) => console.log(`✓ ${++step}. ${m}`);
@@ -73,13 +73,16 @@ try {
   await C.goto(url.replace(/^https?:\/\/[^/]+\//, BASE));
   await C.waitForSelector(".num"); if ((await C.textContent(".num")).trim() !== "1") throw new Error("الزبون ما شاف رقمه");
   await C.waitForSelector("text=كافيه المسا"); ok("الزبون شاف رقمه واسم المطعم");
-  await C.click("#en"); await C.waitForSelector("text=التنبيه مفعّل"); ok("الزبون فعّل التنبيه");
+  await C.click("#en"); await C.waitForSelector("text=التنبيه شغّال");
+  if ((await C.evaluate(() => window.__dawrakAudio?.dataset.mode)) !== "wait") throw new Error("صوت الانتظار ما اشتغل"); ok("الزبون فعّل التنبيه، وصوت الانتظار اشتغل");
   await O.waitForSelector("text=فتح الصفحة"); ok("الكاشير شاف إنو الزبون فتح الصفحة");
 
   // 5) جاهز
   await O.click("[data-ready]");
-  await C.waitForSelector(".ready.show"); ok("وصل التنبيه للزبون: طلبك جاهز");
+  await C.waitForSelector(".ready.show");
+  if ((await C.evaluate(() => window.__dawrakAudio?.dataset.mode)) !== "ring") throw new Error("الرنّة ما اشتغلت"); ok("وصل التنبيه للزبون: طلبك جاهز، والرنّة شغّالة");
   await C.click("#pk"); await C.waitForSelector(".stars");
+  if ((await C.evaluate(() => window.__dawrakAudio?.dataset.mode)) !== "off") throw new Error("الرنّة ما وقفت بعد الاستلام"); ok("الرنّة وقفت لما كبس «استلمت طلبي»");
   await C.click('.stars button[data-r="5"]'); await C.waitForSelector("text=شكراً على تقييمك");
   await C.fill("#cm", "الخدمة سريعة"); await C.click("#cms"); await C.waitForSelector("text=وصلت ملاحظتك");
   await O.waitForSelector("details.done"); await O.click("details.done summary");

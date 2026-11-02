@@ -1,5 +1,5 @@
 // عامل الخدمة: يعرض إشعار "طلبك جاهز" ويفتح الصفحة عند الضغط عليه
-const V = "dawrak-v6";
+const V = "dawrak-v7";
 const ADMIN = new URL(location.href).searchParams.get("role") === "admin"; // نسخة إشعارات صاحب النظام
 const INFO = "dawrak-push"; // معلومات آخر طلب لعرض الإشعار
 const CORE = ["o.html", "o.js", "push.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
@@ -58,6 +58,8 @@ self.addEventListener("push", (e) => {
       fetch(`${base}/v1/projects/${f.project}/databases/(default)/documents/${f.path}?updateMask.fieldPaths=delivered&currentDocument.exists=true&key=${f.key}`,
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { delivered: { booleanValue: true } } }) }).catch(() => {});
     }
+    // إذا صفحة الطلب لسا شغّالة بالخلفية: منقلّها ترن
+    try { (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).forEach((c) => c.postMessage({ type: "ring" })); } catch {}
     const title = (o && o.title) || "🔔 طلبك جاهز!";
     await self.registration.showNotification(title, {
       body: (o && o.body) || "تفضل استلم طلبك",

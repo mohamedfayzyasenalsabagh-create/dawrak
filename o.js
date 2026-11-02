@@ -65,6 +65,8 @@ async function start() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   window.addEventListener("online", net); window.addEventListener("offline", net); net();
   document.addEventListener("visibilitychange", backToPage);
+  // إشعار وصل من الكاشير: إذا الصفحة لسا شغّالة بالخلفية منرن فوراً
+  navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data && e.data.type === "ring" && O && O.status === "ready" && !mem.picked) ring(); });
   window.addEventListener("pageshow", backToPage);
 }
 
@@ -93,8 +95,61 @@ async function loadMenu() {
 
 // ---------- التنبيه ----------
 let ac = null, beepTimer = null, wake = null;
+
+// رنّة حقيقية حتى لو الشاشة مقفلة: الصفحة بتشغّل صوت هادي جداً وهي عم تستنى (متل مشغّل موسيقى)،
+// فالمتصفح ما بيوقفها بالخلفية، ولما يجهز الطلب منبدّل الصوت لرنّة عالية متكررة
+function makeWav(seconds, fn, rate = 16000) {
+  const n = Math.floor(seconds * rate), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, str) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, fn(i / rate))) * 32767, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+let WAIT_URL = null, RING_URL = null;
+function sounds() {
+  if (WAIT_URL) return;
+  // انتظار: همهمة خفيفة كتير (بالكاد تنسمع)
+  WAIT_URL = makeWav(4, (t) => 0.012 * Math.sin(2 * Math.PI * 180 * t) * (0.6 + 0.4 * Math.sin(2 * Math.PI * 0.25 * t)));
+  // رنّة: 3 نغمات عالية ورا بعض، وبعدين سكتة قصيرة
+  RING_URL = makeWav(1.6, (t) => {
+    const k = Math.floor(t / 0.18), local = t - k * 0.18;
+    if (k > 2 || local > 0.15) return 0;
+    const f = k % 2 ? 1175 : 880, env = Math.min(1, local / 0.01, (0.15 - local) / 0.02);
+    return 0.9 * env * Math.sign(Math.sin(2 * Math.PI * f * t)) * 0.8;
+  });
+}
+let ka = null, kaMode = "off";
+function player(mode) {
+  try {
+    sounds();
+    if (!ka) { ka = new Audio(); ka.loop = true; ka.preload = "auto"; ka.setAttribute("playsinline", ""); window.__dawrakAudio = ka; }
+    kaMode = mode; ka.dataset.mode = mode;
+    if (mode === "off") { ka.pause(); setMedia(); return; }
+    const url = mode === "ring" ? RING_URL : WAIT_URL;
+    if (ka.src !== url) ka.src = url;
+    ka.volume = 1;
+    const p = ka.play(); if (p) p.catch(() => {});
+    setMedia();
+  } catch {}
+}
+// البطاقة اللي بتطلع على شاشة القفل
+function setMedia() {
+  try {
+    if (!("mediaSession" in navigator) || !O || !R) return;
+    if (kaMode === "off") { navigator.mediaSession.metadata = null; return; }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: kaMode === "ring" ? "🔔 " + t("طلبك جاهز!") + " #" + O.num : t("طلبك رقم {n} بالتحضير", { n: O.num }),
+      artist: rname(), artwork: [{ src: R.logo || new URL("icon-512.png", location.href).href, sizes: "512x512" }]
+    });
+    navigator.mediaSession.playbackState = "playing";
+  } catch {}
+}
+let live = false; // التنبيه شغّال بهالجلسة (بدو كبسة من الزبون ليشتغل الصوت)
+
 async function enableAlerts() {
-  mem.alerts = true; save();
+  mem.alerts = true; save(); live = true;
+  player(O && O.status === "ready" && !mem.picked ? "ring" : "wait");
   try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); tone(880, 0.12); } catch {}
   try { navigator.vibrate && navigator.vibrate(80); } catch {}
   try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch {}
@@ -133,6 +188,7 @@ function tone(f, d, when = 0) {
 }
 function ring() {
   stopRing();
+  if (live) player("ring");
   try { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch {}
   let n = 0;
   const once = () => {
@@ -144,7 +200,7 @@ function ring() {
   let f = false; const base = rname();
   ring.title = setInterval(() => { document.title = (f = !f) ? "🔔 " + t("طلبك جاهز!") : base; }, 900);
 }
-function stopRing() { clearInterval(beepTimer); clearInterval(ring.title); beepTimer = null; try { navigator.vibrate && navigator.vibrate(0); } catch {} document.title = R ? rname() : "دورك"; }
+function stopRing() { if (live && kaMode === "ring") player(mem.picked ? "off" : "wait"); clearInterval(beepTimer); clearInterval(ring.title); beepTimer = null; try { navigator.vibrate && navigator.vibrate(0); } catch {} document.title = R ? rname() : "دورك"; }
 async function notify() {
   try {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -180,7 +236,7 @@ function markSeen() {
   updateDoc(doc(db, N.rest, RID, "orders", OID), { seenCall: c }).catch(() => { delete mem.seenSent; });
 }
 function picked() {
-  mem.picked = true; save(); stopRing();
+  mem.picked = true; save(); stopRing(); if (live) player("off");
   updateDoc(doc(db, N.rest, RID, "orders", OID), { picked: true }).catch(() => {});
   rendered = ""; render();
 }
@@ -232,7 +288,7 @@ function render() {
   if (!R || !O) return;
   const ready = O.status === "ready";
   const showThanks = ready && mem.picked;
-  const key = [O.status, O.num, mem.alerts, mem.picked, mem.rated, mem.commented, !!media, menuOpen, !!menu, O.calls].join("|");
+  const key = [O.status, O.num, mem.alerts, live, mem.picked, mem.rated, mem.commented, !!media, menuOpen, !!menu, O.calls].join("|");
   if (key === rendered) return; rendered = key;
 
   const head = `<div class="top"><div class="logo" style="${R.logo ? `background-image:url('${R.logo}')` : ""}">${R.logo ? "" : esc(rname().slice(0, 1))}</div><div class="rname">${esc(rname())}</div></div>`;
@@ -252,7 +308,7 @@ function render() {
         <div class="st on"><span class="dot">✓</span>${t("استلمنا")}</div>
         <div class="st on ${stage === 2 ? "now" : ""}"><span class="dot">${stage > 2 ? "✓" : ""}</span>${t("بالتحضير")}</div>
         <div class="st ${stage === 3 ? "on now" : ""}"><span class="dot">${stage === 3 ? "✓" : ""}</span>${t("جاهز")}</div></div>
-      ${mem.alerts ? `<div class="alert ok">✓ ${t("التنبيه مفعّل، رح يرن جوالك لما يجهز طلبك")}</div><p class="hint">${t("خلّي هالصفحة مفتوحة لتوصلك الرنة")}</p>`
+      ${live ? `<div class="alert ok">✓ ${t("التنبيه شغّال، رح يرن جوالك لما يجهز طلبك حتى لو قفلت الشاشة")}</div><p class="hint">🔊 ${t("خلّي صوت الوسائط مرفوع ولا تسكّر هالصفحة. رح تسمع صوت خفيف كتير وانت عم تستنى، هاد طبيعي")}</p>`
         : `<button class="alert" id="en">🔔 ${t("فعّل التنبيه")}</button><p class="hint">${t("اكبس لنرن على جوالك لما يجهز طلبك")}</p>`}
       ${IOS_NEEDS_HOME ? `<div class="ios"><b>📲 ${t("عندك آيفون؟")}</b>${t("لتوصلك الرنة حتى لو قفلت الجوال:")}
         <ol><li>${t("اكبس زر المشاركة")} <span class="sh">${SHARE_ICON}</span> ${t("تحت أو فوق بالمتصفح")}</li>
