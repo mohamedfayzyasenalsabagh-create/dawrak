@@ -1,5 +1,5 @@
 // عامل الخدمة: يعرض إشعار "طلبك جاهز" ويفتح الصفحة عند الضغط عليه
-const V = "dawrak-v5";
+const V = "dawrak-v6";
 const ADMIN = new URL(location.href).searchParams.get("role") === "admin"; // نسخة إشعارات صاحب النظام
 const INFO = "dawrak-push"; // معلومات آخر طلب لعرض الإشعار
 const CORE = ["o.html", "o.js", "push.js", "fb.js", "i18n.js", "en.js", "config.js", "icon-192.png"];
@@ -52,11 +52,17 @@ self.addEventListener("push", (e) => {
   e.waitUntil((async () => {
     let o = null;
     try { const r = await (await caches.open(INFO)).match("/__order"); if (r) o = await r.json(); } catch {}
+    // نسجّل إنو الإشعار وصل لجوال الزبون (لتظهر ✓✓ عند الكاشير)
+    if (o && o.fs) {
+      const f = o.fs, base = f.emu ? `http://${f.emu.host}:${f.emu.fs}` : "https://firestore.googleapis.com";
+      fetch(`${base}/v1/projects/${f.project}/databases/(default)/documents/${f.path}?updateMask.fieldPaths=delivered&currentDocument.exists=true&key=${f.key}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { delivered: { booleanValue: true } } }) }).catch(() => {});
+    }
     const title = (o && o.title) || "🔔 طلبك جاهز!";
     await self.registration.showNotification(title, {
       body: (o && o.body) || "تفضل استلم طلبك",
       icon: (o && o.icon) || "icon-192.png", badge: "icon-192.png",
-      tag: (o && o.tag) || "dawrak", renotify: true, requireInteraction: true,
+      tag: (o && o.tag) || "dawrak", renotify: true, requireInteraction: true, silent: false,
       vibrate: [500, 200, 500, 200, 800], data: { url: (o && o.url) || "./" }
     });
   })());

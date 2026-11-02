@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " DawrakApp/2");
+        s.setUserAgentString(s.getUserAgentString() + " DawrakApp/3");
         web.addJavascriptInterface(new Bridge(), "DawrakApp");
 
         web.setWebViewClient(new WebViewClient() {
@@ -103,10 +103,17 @@ public class MainActivity extends Activity {
     // (المتصفح بيمنع هالطلب، والتطبيق بيبعته مباشرة)
     class Bridge {
         @JavascriptInterface
-        public void push(final String endpoint, final String auth) {
-            if (endpoint == null || !endpoint.startsWith("https://")) return;
+        public void push(final String endpoint, final String auth) { send(null, endpoint, auth); }
+
+        // نفس الإرسال، بس بيرجّع النتيجة للموقع ليعرف الكاشير إذا انبعت الإشعار
+        @JavascriptInterface
+        public void push2(final String id, final String endpoint, final String auth) { send(id, endpoint, auth); }
+
+        void send(final String id, final String endpoint, final String auth) {
+            if (endpoint == null || !endpoint.startsWith("https://")) { reply(id, 0); return; }
             new Thread(() -> {
                 HttpURLConnection c = null;
+                int code = -1;
                 try {
                     c = (HttpURLConnection) new URL(endpoint).openConnection();
                     c.setRequestMethod("POST");
@@ -118,12 +125,18 @@ public class MainActivity extends Activity {
                     c.setDoOutput(true);
                     c.setFixedLengthStreamingMode(0);
                     c.getOutputStream().close();
-                    c.getResponseCode();
+                    code = c.getResponseCode();
                 } catch (Exception ignored) {
                 } finally {
                     if (c != null) c.disconnect();
                 }
+                reply(id, code);
             }).start();
+        }
+
+        void reply(final String id, final int code) {
+            if (id == null) return;
+            web.post(() -> web.evaluateJavascript("window.__pushResult&&window.__pushResult(" + org.json.JSONObject.quote(id) + "," + code + ")", null));
         }
     }
 

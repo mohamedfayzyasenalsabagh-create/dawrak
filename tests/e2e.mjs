@@ -139,6 +139,34 @@ try {
   await O.goto(BASE + "app.html#/r/cashier"); await O.waitForSelector('.ord.ready .n:text-is("4")', { timeout: 30000 });
   ok("الكاشير عمل طلب رقم 4 وكبس جاهز بدون نت، وتزامن لما رجع النت");
 
+  // 7.5) الرنّ المتكرر ونتيجة الإرسال (تطبيق الكاشير مُحاكى)
+  await O.evaluate(() => { window.__DAWRAK_REPEAT_MS = 700; window.__calls = 0; window.__code = 201;
+    window.DawrakApp = { push2: (id) => { window.__calls++; setTimeout(() => window.__pushResult(id, window.__code), 30); } }; });
+  await O.click("#newo"); await O.waitForSelector(".qrbox .bign"); const url5 = await O.getAttribute(".qr", "data-url"); await O.click("[data-ok]");
+  const C5 = await ctx("c5"); await C5.goto(url5.replace(/^https?:\/\/[^/]+\//, BASE)); await C5.waitForSelector(".num");
+  await C5.evaluate(async (u) => { const fb = await import("./fb.js"); const q = new URL(u).searchParams;
+    await fb.updateDoc(fb.doc(fb.db, fb.N.rest, q.get("r"), "orders", q.get("o")), { push: "https://fcm.googleapis.com/fcm/send/fake" }); }, url5);
+  await C5.close();
+  await O.waitForSelector('.ord:not(.ready):has(.n:text-is("5"))'); await O.waitForTimeout(800);
+  await O.click('.ord:has(.n:text-is("5")) [data-ready]');
+  await O.waitForSelector("text=انبعت الإشعار");
+  await O.waitForTimeout(2600);
+  const n1 = await O.evaluate(() => window.__calls);
+  if (n1 < 3) throw new Error("الرنّ ما تكرر: " + n1); ok(`الإشعار تكرر ${n1} مرات لأن الزبون ما شافه، والكاشير شاف «انبعت الإشعار»`);
+  const C6 = await ctx("c6"); await C6.goto(BASE + "o.html?r=x&o=y");
+  await C6.evaluate(async (u) => { const fb = await import("./fb.js"); const q = new URL(u).searchParams;
+    await fb.updateDoc(fb.doc(fb.db, fb.N.rest, q.get("r"), "orders", q.get("o")), { delivered: true }); }, url5);
+  await O.waitForSelector("text=وصل لجواله"); ok("علامة ✓✓ «وصل لجواله» ظهرت عند الكاشير");
+  await C6.goto(url5.replace(/^https?:\/\/[^/]+\//, BASE)); await C6.waitForSelector(".ready.show");
+  await O.waitForSelector("text=شاف إنو طلبه جاهز"); const n2 = await O.evaluate(() => window.__calls); await O.waitForTimeout(2000);
+  if ((await O.evaluate(() => window.__calls)) !== n2) throw new Error("الرنّ ما وقف بعد ما الزبون شاف");
+  ok("الرنّ وقف أول ما فتح الزبون صفحته وشاف إنو طلبه جاهز");
+  await O.evaluate(() => { window.__code = 410; });
+  await O.click('.ord:has(.n:text-is("5")) [data-call]');
+  await O.waitForSelector("text=ما وصل الإشعار، ناديه بصوتك").catch(() => {});
+  await C6.close();
+  await O.evaluate(() => { window.DawrakApp = undefined; });
+
   // 9) تخصيص صفحة الزبون
   await O.goto(BASE + "app.html#/r/brand"); await O.waitForSelector("#n2");
   await O.fill("#n2", "Evening Cafe"); await O.click("#sv"); await O.waitForSelector("text=انحفظ");

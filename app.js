@@ -7,7 +7,7 @@ import {
 } from "./fb.js";
 import { t, lang, setLang } from "./i18n.js";
 import { APK_URL } from "./config.js";
-import { sendPush, VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
+import { sendPush, pushOk, syncClock, VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -313,7 +313,11 @@ function viewCashier(v) {
     const fresh = ready.filter((o) => now - rt(o) < 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const old = ready.filter((o) => now - rt(o) >= 5 * 60e3).sort((a, b) => rt(b) - rt(a));
     const row = (o, cls) => {
-      const flags = [o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.picked ? `✓ ${t("استلم")}` : o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.rating ? "⭐".repeat(o.rating) : "", o.comment ? "💬" : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
+      const ps = o.status !== "ready" || o.picked ? "" : seenIt(o) ? `<span style="color:var(--ok)">👀 ${t("شاف إنو طلبه جاهز")}</span>`
+        : !o.push ? `<span style="color:var(--warn)">🔕 ${t("ما فعّل التنبيه، ناديه بصوتك")}</span>`
+        : o.pushRes === "expired" || o.pushRes === "fail" ? `<b style="color:var(--bad)">⚠️ ${t("ما وصل الإشعار، ناديه بصوتك")}</b>`
+        : o.delivered ? `<span style="color:var(--ok)">✓✓ ${t("وصل لجواله")}</span>` : o.pushRes === "ok" ? `📨 ${t("انبعت الإشعار")}` : "";
+      const flags = [ps, o.status !== "ready" && o.push ? `🔔 ${t("التنبيه مفعّل")}` : "", o.picked ? `✓ ${t("استلم")}` : o.opened ? `📱 ${t("فتح الصفحة")}` : `<span style="color:var(--warn)">${t("ما مسح الرمز بعد")}</span>`, o.rating ? "⭐".repeat(o.rating) : "", o.comment ? "💬" : "", o.calls ? `🔔×${o.calls + 1}` : ""].filter(Boolean).join(" · ");
       return `<div class="ord ${cls}" data-id="${o.id}"><div class="n" data-qr>${o.num}</div>
         <div class="m"><b>${o.status === "ready" ? t("جاهز") + " · " + fmtTime(o.readyAt) : t("بالتحضير") + " · " + fmtTime(o.createdAt)}</b><br>${flags}</div>
         <div class="acts">${o.picked ? "" : o.status === "new" ? `<button class="btn ok" data-ready>✓ ${t("جاهز")}</button>`
@@ -330,8 +334,8 @@ function viewCashier(v) {
     const card = e.target.closest(".ord"); if (!card) return;
     const id = card.dataset.id, o = orders.find((x) => x.id === id), ref = doc(db, N.rest, S.rid, "orders", id);
     try {
-      if (e.target.closest("[data-ready]")) { await write(updateDoc(ref, { status: "ready", readyAt: serverTimestamp() })); pushTo(o); }
-      else if (e.target.closest("[data-call]")) { await write(updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() })); pushTo(o); toast(t("رنّينا للزبون مرة تانية 🔔")); }
+      if (e.target.closest("[data-ready]")) { await write(updateDoc(ref, { status: "ready", readyAt: serverTimestamp() })); startRing(o); }
+      else if (e.target.closest("[data-call]")) { await write(updateDoc(ref, { calls: increment(1), lastCall: serverTimestamp() })); startRing({ ...o, calls: (o.calls || 0) + 1 }); toast(t("رنّينا للزبون مرة تانية 🔔")); }
       else if (e.target.closest("[data-done]")) await write(updateDoc(ref, { picked: true }));
       else if (e.target.closest("[data-undo]")) await write(updateDoc(ref, { status: "new", readyAt: null }));
       else if (e.target.closest("[data-qr]")) showQr(o);
@@ -385,14 +389,35 @@ let pushWarned = false;
 const pendingPush = new Set();
 function flushPush() {
   const ids = [...pendingPush]; pendingPush.clear();
-  for (const id of ids) { const o = (S.orders || []).find((x) => x.id === id); if (o && o.status === "ready" && !o.picked) pushTo(o); }
+  for (const id of ids) { const o = (S.orders || []).find((x) => x.id === id); if (o && !seenIt(o)) startRing(o); }
 }
 async function pushTo(o) {
   if (!o || !o.push) return;
   if (!navigator.onLine) { pendingPush.add(o.id); return; }
-  const ok = await sendPush(o.push);
-  if (!ok && !IN_APP && !pushWarned) { pushWarned = true; toast(t("لتوصل الرنة للزبون وجواله مقفل، استخدم تطبيق الكاشير"), 5000); }
+  const code = await sendPush(o.push);
+  const res = pushOk(code) ? "ok" : code === 404 || code === 410 ? "expired" : code === 0 && !IN_APP ? "noapp" : "fail";
+  if (res === "noapp" && !pushWarned) { pushWarned = true; toast(t("لتوصل الرنة للزبون وجواله مقفل، استخدم تطبيق الكاشير"), 5000); }
+  if (o.pushRes !== res || res !== "ok") updateDoc(doc(db, N.rest, S.rid, "orders", o.id), { pushRes: res, pushCode: code }).catch(() => {});
+  return res;
 }
+// رنّ متكرر: منعيد الإشعار كل 15 ثانية (لحد 6 مرات) لحتى يشوفه الزبون أو يستلم، متل جهاز النداء
+const REPEAT_MAX = 6;
+const ringing = new Map();
+const seenIt = (o) => o.picked || o.status !== "ready" || (o.seenCall ?? -1) >= (o.calls || 0);
+function startRing(o) {
+  if (!o || !o.push) return;
+  stopRing(o.id);
+  let n = 1; pushTo(o);
+  const tm = setInterval(() => {
+    const cur = (S.orders || []).find((x) => x.id === o.id);
+    if (!cur || seenIt(cur) || n >= REPEAT_MAX || cur.pushRes === "expired") return stopRing(o.id);
+    n++; pushTo(cur);
+  }, window.__DAWRAK_REPEAT_MS || 15000);
+  ringing.set(o.id, tm);
+}
+function stopRing(id) { clearInterval(ringing.get(id)); ringing.delete(id); }
+syncClock(); setInterval(syncClock, 30 * 60e3);
+
 // حذف الطلبات الأقدم من 3 أشهر (مرة باليوم، من حساب صاحب المطعم)
 async function cleanupOld() {
   if (!isOwner() || !navigator.onLine) return;

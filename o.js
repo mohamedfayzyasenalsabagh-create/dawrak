@@ -1,4 +1,5 @@
 // صفحة الزبون: رقم الطلب وحالته، والتنبيه لما يجهز
+import { firebaseConfig } from "./config.js";
 import { configured, db, N, doc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, where } from "./fb.js";
 import { t, lang, useAuto } from "./i18n.js";
 import { VAPID_PUBLIC, urlB64ToBytes } from "./push.js";
@@ -57,7 +58,7 @@ async function start() {
     const prev = O; O = s.data();
     if (!O.opened) updateDoc(s.ref, { opened: true }).catch(() => {});
     if (!prev && mem.alerts) subscribePush();
-    react(prev); render();
+    react(prev); render(); markSeen();
   }, () => fail(t("تعذّر الاتصال، تأكد من الإنترنت وحدّث الصفحة")));
 
   loadMedia();
@@ -108,7 +109,9 @@ async function subscribePush() {
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(VAPID_PUBLIC) });
     // معلومات الإشعار لعامل الخدمة
-    reg.active && reg.active.postMessage({ type: "order", url: location.href, title: "🔔 " + rname() + " · " + t("طلبك جاهز!"), body: t("طلب رقم {n} جاهز، تفضل استلمه", { n: O.num }), icon: R.logo || "icon-192.png", tag: KEY });
+    const cfg = window.__DAWRAK_CFG || firebaseConfig;
+    reg.active && reg.active.postMessage({ type: "order", url: location.href,
+      fs: { project: cfg.projectId, key: cfg.apiKey, path: `${N.rest}/${RID}/orders/${OID}`, emu: window.__DAWRAK_EMU || null }, title: "🔔 " + rname() + " · " + t("طلبك جاهز!"), body: t("طلب رقم {n} جاهز، تفضل استلمه", { n: O.num }), icon: R.logo || "icon-192.png", tag: KEY });
     if (O.push !== sub.endpoint) await updateDoc(doc(db, N.rest, RID, "orders", OID), { push: sub.endpoint });
   } catch (e) { console.warn("push", e); }
 }
@@ -116,6 +119,7 @@ async function subscribePush() {
 async function backToPage() {
   if (document.visibilityState !== "visible") return;
   if (mem.alerts) lock();
+  markSeen();
   if (O && O.status === "ready" && !mem.picked) { try { await ac?.resume(); } catch {} ring(); }
 }
 async function lock() { try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => (wake = null)); } } catch {} }
@@ -167,6 +171,14 @@ function react(prev) {
   }
 }
 
+// الزبون شاف إنو طلبه جاهز: الكاشير بيوقف تكرار الرنّة
+function markSeen() {
+  if (!O || O.status !== "ready" || document.visibilityState !== "visible") return;
+  const c = O.calls || 0;
+  if ((O.seenCall ?? -1) >= c || mem.seenSent === c) return;
+  mem.seenSent = c; save();
+  updateDoc(doc(db, N.rest, RID, "orders", OID), { seenCall: c }).catch(() => { delete mem.seenSent; });
+}
 function picked() {
   mem.picked = true; save(); stopRing();
   updateDoc(doc(db, N.rest, RID, "orders", OID), { picked: true }).catch(() => {});

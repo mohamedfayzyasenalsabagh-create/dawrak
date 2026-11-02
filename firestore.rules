@@ -62,7 +62,9 @@ service cloud.firestore {
         allow create: if inRest(rid) && (active(rid) || o == 'preview')
           && request.resource.data.status == 'new' && request.resource.data.by == uid();
         allow update: if inRest(rid)
-          || (changed().hasOnly(['opened', 'picked', 'rating', 'push', 'comment'])
+          || (changed().hasOnly(['opened', 'picked', 'rating', 'push', 'comment', 'seenCall', 'delivered'])
+              && (!('seenCall' in changed()) || (request.resource.data.seenCall is int && request.resource.data.seenCall >= 0 && request.resource.data.seenCall <= 1000))
+              && (!('delivered' in changed()) || request.resource.data.delivered == true)
               && (!('comment' in changed()) || (!('comment' in resource.data)
                   && request.resource.data.comment is string && request.resource.data.comment.size() <= 300))
               && (!('push' in changed()) || (request.resource.data.push is string && request.resource.data.push.size() < 1000
